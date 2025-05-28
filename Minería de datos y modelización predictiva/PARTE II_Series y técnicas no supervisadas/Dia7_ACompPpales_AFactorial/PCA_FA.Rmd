@@ -1,0 +1,540 @@
+---
+title: Reducción de dimensiones. PCA y FA.
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+# Introducción
+
+En esta documento exploramos algunas posibilidades de python para el análisis de reducción de la dimensionalidad del conjunto de datos tanto por Análisis de Componentes Principales (PCA) como por Análisis Factorial (FA). 
+
+Aplicaremos el estudio a los datos "cities.csv" que contiene información sobre características de 21 ciudades en cuanto a indicadores de desarrollo tecnológico, poblaciones, superficie.. Se pretende extraer las componentes o factores que puedan resumir el comportamiento de los datos en baja dimensionalidad con un fin interpretativo. 
+
+
+
+```{python}
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+
+#PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
+from sklearn.decomposition import PCA
+
+#Factor Analysis
+from sklearn.decomposition import FactorAnalysis
+from factor_analyzer import FactorAnalyzer
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer.factor_analyzer import calculate_kmo
+
+#Encoding
+from sklearn.preprocessing import LabelEncoder
+```
+
+
+Lectura de los datos de ciudades.
+
+```{python}
+# Lectura de datos
+cities = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23\\Datos\\cities.csv')
+
+# Fijamos nombres como index de filas
+cities.set_index(['City'],inplace=True)
+cities.head()
+```
+
+# Adecuación muestral 
+
+Antes de realizar cualquier tipo de análisis de reducción de dimensiones, es conveniente estudiar la adecuación muestral de los datos en cuanto a la estructura de correlación global de las variables. La idea fundamental es que si no existe una estructura de varianzas compartidas entre las variables, las direcciones en el espacio entre las mismas serán más bien ortogonales y, por tanto, no hay componente en el mundo que pueda situarse correctamente para captar información de varias variables... El PCA o el FA están abocados al fracaso. 
+
+1. **Matriz de correlaciones entre las variables**. Nos interesa siempre bien de color o, lo que es lo mismo, valores de correlación altos ya que eso es síntoma de estructura de varianzas compartidas y nos viene bien para captar esa varianza común con una buena componente situada correctamente. 
+
+```{python}
+corr = cities.corr()
+corr.style.background_gradient(cmap='coolwarm').format(precision=3)
+```
+2. **Test de esferidad de Bartlett**. Compara la matriz de correlaciones con una matriz identidad para extraer un p-valor. La hipótesis nula del contraste es H0: Matriz de correlaciones = Matriz identidad, por lo que nos interesa rechazarla! Recordemos que una matriz identidad tiene componentes absolutamente ortogonales, osea 0 correlación o varianza compartida. 
+
+```{python}
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+calculate_bartlett_sphericity(cities)
+```
+Valor del estadístico muy alto y p-valor muy pequeño --> Rechazo claro de la hipótesis nula, tiene buena pinta!
+
+3. **KMO-MSA global y por variable**. Índice de adecuación muestral o de Kaiser-Meyer-Olkin para comparar la correlación observada entre pares de variables y sus correspondientes correlaciones parciales (una vez eliminado el efecto de otras variables presentes). Buscamos valores superiores a 0.5 y cuanto más cercanos a 1, mejor. 
+
+```{python}
+from factor_analyzer.factor_analyzer import calculate_kmo
+calculate_kmo(cities)
+
+#calculate_kmo(cities.drop(['Area'], axis=1))
+```
+La variable Area tiene un msa muy bajo por lo que nos planteamos si eliminarla del análisis para ganar estructura compartida. 
+
+
+# Escalado de datos
+
+Unidades de medida distintas implican necesidad de escalar los datos para que las variables con mayor escala de medida no "pesen" más de lo que deben en la solución. 
+
+```{python}
+scaler = StandardScaler()
+scaler.fit(cities)
+X = scaler.transform(cities)
+```
+
+
+# Análisis de Componentes Principales (PCA)
+
+Recurrimos a la función PCA de sklearn para obtener la descomposición en valores singulares y el resultado de componentes para los datos. 
+
+```{python}
+pca = PCA()
+scores = pca.fit_transform(X)
+
+```
+
+**Visualización con paquete *psynlig***
+
+```{python}
+from psynlig import pca_scree
+plt.style.use('seaborn-talk')
+
+pca_scree(pca, marker='o', markersize=16, lw=3)
+
+plt.show()
+```
+
+```{python}
+from psynlig import pca_explained_variance_pie
+plt.style.use('seaborn-talk')
+
+fig, axi = pca_explained_variance_pie(pca, cmap='plasma')
+axi.set_title('Explained variance by principal components')
+
+plt.show()
+```
+
+```{python}
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from psynlig import (
+    pca_explained_variance,
+    pca_residual_variance,
+    pca_explained_variance_bar,
+    pca_explained_variance_pie,
+    pca_1d_loadings,
+    pca_2d_loadings,
+    pca_2d_scores
+)
+
+fig, (ax1, ax2) = plt.subplots(
+    nrows=1, ncols=2, figsize=(14, 6), constrained_layout=True
+)
+pca_explained_variance_bar(pca, axi=ax1, alpha=0.8)
+pca_explained_variance(pca, axi=ax2, marker='o', markersize=16, alpha=0.8)
+ax4 = ax2.twinx()
+pca_residual_variance(
+    pca,
+    ax4,
+    marker='X',
+    markersize=16,
+    alpha=0.8,
+    color='black',
+    linestyle='--'
+)
+ax3 = inset_axes(ax1, width='45%', height='45%', loc=9)
+pca_explained_variance_pie(pca, axi=ax3, cmap='tab20')
+plt.show()
+```
+
+```{python}
+pca_1d_loadings(
+        pca,
+        cities.columns,
+        select_components={2},
+        plot_type='bar',
+    )
+plt.show()
+```
+
+```{python}
+import plotly.express as px
+fig = px.scatter(scores, x=0, y=1, text=cities.index)
+fig.show()
+
+```
+
+```{python}
+plt.rcParams["figure.figsize"] = (12,10)
+
+def biplot(score,coeff,labels=None):
+    xs = score[:,0]
+    ys = score[:,1]
+    n = coeff.shape[0]
+    scalex = 1.0/(xs.max() - xs.min())
+    scaley = 1.0/(ys.max() - ys.min())
+    plt.scatter(xs * scalex,ys * scaley) #, c = cities.index.tolist())
+    for i in range(n):
+        plt.arrow(0, 0, coeff[i,0], coeff[i,1],color = 'r',alpha = 0.5)
+        if labels is None:
+            plt.text(coeff[i,0]* 1.15, coeff[i,1] * 1.15, "Var"+str(i+1), color = 'g', ha = 'center', va = 'center')
+        else:
+            plt.text(coeff[i,0]* 1.15, coeff[i,1] * 1.15, labels[i], color = 'g', ha = 'center', va = 'center')
+    plt.xlim(-1,1)
+    plt.ylim(-1,1)
+    plt.xlabel("PC{}".format(1))
+    plt.ylabel("PC{}".format(2))
+    plt.grid()
+
+#Call the function. Use only the 2 PCs.
+biplot(scores[:,0:2],np.transpose(pca.components_[0:2, :]),cities.columns)
+plt.show()
+```
+
+```{python}
+loading_settings = {
+    'add_text': True
+}
+pca_2d_scores(
+    pca,
+    scores,
+    xvars=cities.columns,
+    #class_data=class_data,
+    #class_names=class_names,
+    select_components={(1, 2)},
+    loading_settings=loading_settings,
+    s=200,
+    alpha=.8,
+    cmap_class='Dark2',
+)
+
+plt.show()
+```
+
+```{python}
+from psynlig import pca_loadings_map
+kwargs = {
+    'text': {
+        'fontsize': 'large',
+    },
+    'heatmap': {
+        'vmin': -1,
+        'vmax': 1,
+    },
+}
+
+
+# Plot the value of the coefficients:
+pca_loadings_map(
+    pca,
+    cities.columns,
+    textcolors=['white', 'black'],
+    **kwargs
+)
+plt.show()
+```
+
+```{python}
+# Plot the value of the coefficients:
+pca_loadings_map(
+    pca,
+    cities.columns,
+    bubble=True,
+    annotate=False,
+    **kwargs
+)
+plt.show()
+```
+
+```{python}
+
+
+loading_settings = {
+    'add_text': True,
+    'add_legend': False,
+    'biplot': True,
+    'text': {
+        'fontsize': 'x-large',
+        'alpha': 0.8,
+        'outline': {'linewidth': 1.5}
+    },
+}
+
+pca_2d_scores(
+    pca,
+    scores,
+    xvars=cities.columns,
+    #class_data=class_data,
+    #class_names=class_names,
+    select_components={(1, 2)},
+    loading_settings=loading_settings,
+    s=150,
+    alpha=.5,
+    cmap_loadings='plasma',
+)
+plt.show()
+```
+
+```{python}
+
+text_settings = {
+    'fontsize': 'xx-large',
+    'outline': {'foreground': '0.2'}
+}
+
+pca_2d_loadings(
+    pca,
+    cities.columns,
+    select_components={(3, 4)},
+    text_settings=text_settings
+)
+plt.show()
+```
+
+
+
+## PCA con el paquete *pca*
+
+```{python}
+# Load library
+from pca import pca
+
+# Initialize pca with default parameters
+model = pca(normalize=True)
+
+# Fit transform
+results = model.fit_transform(cities)
+
+# Plot the explained variance
+model.plot()
+```
+
+```{python}
+model.results
+```
+
+```{python}
+# Plot the explained variance
+model.biplot(legend=False)
+#plt.show()
+```
+
+
+
+# Análisis Factorial
+
+Para el Análisis Factorial vamos a explorar el paquete **factor_analyzer** que implementa el análisis exploratorio con la estimación de parámetros por MINRES (minimización de residuos, por defecto) o ML (máxima verosimilitud). Está inspirado en la implementación de esta técnica en el paquete *psych* de R. 
+
+https://factor-analyzer.readthedocs.io/en/latest/index.html
+
+
+```{python}
+from factor_analyzer import FactorAnalyzer
+
+fa = FactorAnalyzer(rotation = 'Varimax',impute = "drop",n_factors=2) #cities.shape[1]
+
+fa.fit(cities)
+```
+
+**Secree plot**
+
+
+```{python, results=F}
+ev,_ = fa.get_eigenvalues()
+plt.scatter(range(1,cities.shape[1]+1),ev)
+plt.plot(range(1,cities.shape[1]+1),ev)
+plt.title('Scree Plot')
+plt.xlabel('Factors')
+plt.ylabel('Eigen Value')
+plt.grid()
+```
+
+
+```{python}
+plt.show()
+```
+
+**Varianza de los factores**
+
+```{python}
+fa_var = pd.DataFrame(fa.get_factor_variance(),index=['Variance','Proportional Var','Cumulative Var'])
+fa_var
+```
+
+**Comunalidades**
+
+```{python}
+fa_commu = pd.DataFrame(fa.get_communalities(),index=cities.columns,columns=['Communalities'])
+fa_commu
+```
+
+**Cargas**
+
+```{python}
+fa_loadings = pd.DataFrame(fa.loadings_,index=cities.columns)
+fa_loadings
+```
+
+**Puntuaciones**
+
+```{python}
+fa_scores = pd.DataFrame(fa.transform(cities),index=cities.index)
+fa_scores.head()
+```
+
+
+**Visualización de resultados** 
+
+Con plotly. 
+
+```{python}
+#loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
+loadings=np.array(fa_loadings)
+
+fig = px.scatter(fa_scores, x=0, y=1, text=cities.index)
+#fig.show()
+
+# for i, feature in enumerate(cities.columns):
+#     fig.add_shape(
+#         type='line',
+#         x0=0, y0=0,
+#         x1=loadings[i, 0],
+#         y1=loadings[i, 1]
+#     )
+#     fig.add_annotation(
+#         x=loadings[i, 0],
+#         y=loadings[i, 1],
+#         ax=0, ay=0,
+#         xanchor="center",
+#         yanchor="bottom",
+#         text=feature,
+#     )
+```
+
+
+Con la función biplot que hemos definido antes.
+
+```{python}
+biplot(np.array(fa_scores),np.array(fa_loadings),cities.columns)
+plt.show()
+```
+
+Se puede apreciar la rotación para alienar las direcciones de los factores con las observadas en las variables. De esta forma, la proyección sobre el espacio de 2 factores es más clara y permite recoger de forma más clara los efectos de los grupos de variables. 
+
+Aquí, podríamos decir que el factor 1 está asociado con el desarrollo tecnológico en contraposición al hacinamiento, el índice de alimentos y en menor medida el crecimiento y el factor 2 recoge las variables de poblaciones, en especial Pob.2000 que está casi perfectamente alienada, por lo que la contribución es alta y además tiene un módulo (longitud) grande, por lo que su carga es alta. 
+
+A la luz de la solución factorial y especialmente de la baja comunalidad de Area (algo que ya intuímos en un inicio por su bajo MSA), vamos a probar un estudio de FA eliminando esta variable del archivo. 
+
+
+```{python}
+cities_r = cities.drop(['Area'],axis=1)
+
+fa.fit(cities_r)
+```
+
+**Varianza de los factores**
+
+```{python}
+fa_var = pd.DataFrame(fa.get_factor_variance(),index=['Variance','Proportional Var','Cumulative Var'])
+fa_var
+```
+Se aumenta la variabilidad explicada. 
+
+**Comunalidades**
+
+```{python}
+fa_commu = pd.DataFrame(fa.get_communalities(),index=cities_r.columns,columns=['Communalities'])
+fa_commu
+```
+Crecimiento y vehículos son las peor representadas en la solución.
+
+**Cargas**
+
+```{python}
+fa_loadings = pd.DataFrame(fa.loadings_,index=cities_r.columns)
+fa_loadings
+```
+
+**Puntuaciones**
+
+```{python}
+fa_scores = pd.DataFrame(fa.transform(cities_r),index=cities_r.index)
+fa_scores.head()
+```
+
+
+Biplot.
+
+```{python}
+biplot(np.array(fa_scores),np.array(fa_loadings),cities_r.columns)
+plt.show()
+```
+
+
+# Comparativa PCA-FA-FA_varimax
+
+Exploramos aquí un proceso de comparación de resultados que puede ser de utilidad de cara a la exploración rápida de modelos de reducción de dimensiones y que ilustra las diferencias en las soluciones de PCA, FA y FA con rotación de factores. 
+
+En esta ocasión, vamos a ajustar el FA mediante la función **FactorAnalysis** implementada en *sklearn*, que calcula las cargas mediante el método de máxima verosimilitud (ML).
+
+https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.FactorAnalysis.html
+
+
+Vamos a ajustar los 3 métodos a los datos escalados y generar un gráfico de las cargas de las variables en los factores o componentes del espacio reducido. 
+
+```{python}
+from sklearn.decomposition import FactorAnalysis, PCA
+from sklearn.preprocessing import scale
+n_comps = 2
+
+# Escalado de datos
+# ==============================================================================
+X=scale(cities_r)
+
+feature_names=cities_r.columns
+methods = [
+    ("PCA", PCA()),
+    ("Unrotated FA", FactorAnalysis()),
+    ("Varimax FA", FactorAnalysis(rotation="varimax")),
+]
+fig, axes = plt.subplots(ncols=len(methods), figsize=(10, 8))
+
+for ax, (method, fa) in zip(axes, methods):
+    fa.set_params(n_components=n_comps)
+    fa.fit(X)
+
+    components = fa.components_.T
+    print("\n\n %s :\n" % method)
+    print(pd.DataFrame(components))
+
+    vmax = np.abs(components).max()
+    ax.imshow(components, cmap="RdBu_r", vmax=vmax, vmin=-vmax)
+    ax.set_yticks(np.arange(len(feature_names)))
+    if ax.get_subplotspec().is_first_col():
+        ax.set_yticklabels(feature_names)
+    else:
+        ax.set_yticklabels([])
+    ax.set_title(str(method))
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["Comp. 1", "Comp. 2"])
+    
+fig.suptitle("Factors")
+plt.tight_layout()
+plt.show()
+```
+
+
+

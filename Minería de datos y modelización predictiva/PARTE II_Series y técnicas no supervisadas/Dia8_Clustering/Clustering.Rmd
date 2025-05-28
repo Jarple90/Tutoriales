@@ -1,0 +1,931 @@
+---
+title: Clustering
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+
+# Introducción
+
+En esta documento exploramos los métodos clásicos de clustering en sus variantes jerárquica y no jerárquica y una posible implementación de los mismos en Python que incluye ajuste de modelo, elección del número óptimo de grupos y evaluación de la solución de agrupación propuesta. En la primera sección haremos un ejercicio de simulación de datos que ilustra en dos dimensiones el funcionamiento de los algoritmos y su potencia de clasificación a pesar de tener una naturaleza no supervisada.
+
+```{python}
+# Tratamiento de datos
+# ==============================================================================
+import numpy as np
+import pandas as pd
+from sklearn.datasets import make_blobs
+
+# Gráficos
+# ==============================================================================
+import matplotlib.pyplot as plt
+from matplotlib import style
+style.use('ggplot') or plt.style.use('ggplot')
+plt.rcParams["figure.figsize"] = (12,10)
+
+# Preprocesado y modelado
+# ==============================================================================
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import scale
+from sklearn.metrics import silhouette_score
+
+# Configuración warnings
+# ==============================================================================
+import warnings
+warnings.filterwarnings('ignore')
+```
+
+# Probando algortimos de clustering con datos simulados
+
+La idea es que vamos a generar un dataset artificial con 2 variables y 300 registros con 4 centros (potenciales centroides a reconocer) y en el que podemos jugar a variar la variabilidad interna de los grupos de tal forma que cuanto mayor sea, el solapamiento en el plano de los puntos de cada grupo será mayor y, por tanto, más dificultad tendrá el problema de separar las clases.
+
+Generamos entonces un matriz 2-dimensional **X** de variables y una variable de agrupación **y** que contiene la verdad verdadera (recordemos que esto no suele pasar en la vida real puesto que si tenemos la verdad nos inclinaremos por un modelo de clasificación supervisada!) y que servirá para comprobar la capacidad de clasificación de los métodos de clustering como si de un problema de clasificación supervisada se tratara. 
+
+La subyacente pregunta es: Siendo estos métodos no supervisados, ¿serán capaces de reconocer grupos reales ya predefinidos?
+
+```{python}
+plt.rcParams["figure.figsize"] = (12,10)
+# Simulación de datos
+# ==============================================================================
+X, y = make_blobs(
+        n_samples    = 300, # n observaciones
+        n_features   = 2, # n variables
+        centers      = 4, # n centros o grupos a generar
+        cluster_std  = 0.6, # variabilidad de los grupos
+        shuffle      = True, 
+        random_state = 0
+       )
+X, y
+```
+
+Aquí tenemos la variable y de verdad verdadera con el grupo real al que pertenece cada observación de la matriz X. Utilizaremos para contrastar la clasificación propuesta por los métodos de clustering. 
+
+Observamos el dataset en el espacio de dos dimensiones para valorar la nube de puntos y su solapamiento entre grupos como indicador de dificultad para el método de reconocimiento de grupos.
+
+```{python}
+fig, ax = plt.subplots(1, 1, figsize=(6, 3.84))
+ax.scatter(
+    x = X[:, 0],
+    y = X[:, 1], 
+    c = 'white',
+    marker    = 'o',
+    edgecolor = 'black', 
+)
+ax.set_title('Datos simulados');
+plt.show()
+```
+
+Se han formado 4 grupos con bastante separabilidad en el plano con lo que se intuye buen funcionamiento de los métodos de agrupación de instancias. La idea es contrastar los criterios de evaluación en el ambiente no supervisado (wss, silueta, %variabilidad..) con los criterios de evaluación bajo una verdad verdadera con matrices de confusión. De esta forma, podemos evaluar si la mejora en los primeros implica mejora en los segundos. 
+
+En primer luegar, antes de la aplicación de métodos de clustering es conveniente escalar los datos si no podemos asegurar que la escala de medida sea la misma ya que distintas medidas afectan a la evaluación de distancias en el espacio haciendo que unas variables puedan "pesar" más que otras en la solución de forma "ilícita". 
+
+```{python}
+# Escalado de datos
+# ==============================================================================
+X_scaled = scale(X)
+```
+
+Exploraremos los métodos de clustering jerárquicos y Kmeans y compararemos resultados.
+
+## Clustering Jerárquico
+
+Los métodos de clustering jerárquico servirán para hacerse una idea de la dinámica de agrupación de los datos y proponer, en base al dendograma, un número de grupos tentativos que presenten características comunes. 
+
+Vamos a definir una función que facilite la creación del dendograma dado el modelo jerárquico que se desee visualizar. 
+
+```{python}
+from sklearn.cluster import AgglomerativeClustering
+from scipy.cluster.hierarchy import dendrogram
+from time import time
+
+
+def plot_dendogram(model, **kwargs):
+  
+  '''
+  Esta función extrae la información de un modelo AgglomerativeClustering
+  y representa su dendograma con la función dendogram de scipy.cluster.hierarchy
+  '''
+      
+  counts = np.zeros(model.children_.shape[0])
+  n_samples = len(model.labels_)
+  for i, merge in enumerate(model.children_):
+    current_count = 0
+    for child_idx in merge:
+      if child_idx < n_samples:
+        current_count += 1  # leaf node
+      else:
+        current_count += counts[child_idx - n_samples]
+    counts[i] = current_count
+  
+  linkage_matrix = np.column_stack([model.children_, model.distances_,
+                                        counts]).astype(float)
+  
+  # Plot
+  dendrogram(linkage_matrix, **kwargs)
+  plt.show()
+    
+```
+
+**Distintos Linkages**
+
+Aplicamos el dendograma para los 4 métodos de Linkage principales para comparar la dinámica de agrupación propuesta por cada uno de ellos. 
+
+```{python}
+for linkage in ("ward", "average", "complete", "single"):
+    clustering = AgglomerativeClustering(linkage=linkage, n_clusters=None,
+                            distance_threshold = 0)
+    t0 = time()
+    clustering.fit(X_scaled)
+    print("%s :\t%.2fs" % (linkage, time() - t0))
+    
+    plt.clf()
+    plot_dendogram(clustering)
+    #plot_clustering(X_scaled, clustering.labels_, "%s linkage" % linkage)
+
+
+#plt.show()
+```
+
+### Modelo jerárquico escogido y número de clusters
+
+Decidimos quedarnos con el método de mínima varianza de Ward ya que las alturas de corte parecen discriminar algo mejor a los grupos. Claramente se proponen 4 grupos (como no podía ser de otra manera ya que hay 4 grupos claramente). Vamos bien! 
+
+Ajustamos un clustering jerárquico por el Linkage de Ward y 4 grupos. Extraeremos la clasificación propuesta en forma de vector de clase predicha y calcularemos dos métricas de evaluación en ambiente no supervisado: 
+
+1. **Silueta**. El coeficiente de silueta se define para cada registro como $\frac{b-a}{max(a,b)}$ siendo **a** la distancia a su centroide y **b** la distancia al centroide del grupo más cercano y al que no pertenece dicho registro según la agrupación propuesta. Nos informa para cada registro de lo "bien" clasificado que se encuentra en su grupo actual o si tal vez estaría mejor perteneciendo al grupo más cercano. La función *silhouette_score* devuelve el promedio para todas las observaciones del archivo. Siempre se puede querer consultar los coeficientes para cada observación, lo haríamos con *silhouette_samples*.
+
+2. **Indice de Calinski-Harabasz**. El criterio de la varianza de toda la vida. Compara la varianza entre grupos bss con la varianza intra wss a través de un cociente. Cuanto mayor sea el índice, mejor se considera el clustering. Fórmulación matemática concreta utilizada por la función de Python https://scikit-learn.org/stable/modules/clustering.html#calinski-harabasz-index
+
+```{python}
+modelo_hclust_ward = AgglomerativeClustering(
+                            affinity = 'euclidean',
+                            linkage  = 'ward',
+                            n_clusters  = 4
+                     )
+modelo_hclust_ward.fit(X=X_scaled)
+
+cluster_labels = modelo_hclust_ward.fit_predict(X_scaled)
+```
+
+```{python}
+cluster_labels
+```
+
+*Silueta clustering Ward*
+
+
+```{python}
+silhouette_score(X_scaled, cluster_labels)
+
+```
+
+*Indice de Calinski-Harabasz clustering Ward*
+
+
+```{python}
+from sklearn import metrics
+metrics.calinski_harabasz_score(X_scaled, cluster_labels)
+```
+
+### Visuallización y comparativa
+
+Vamos a representar la nube de puntos inicial en dos variantes. 1) Distinguiendo los grupos originales de la verdad verdadera y 2) Distinguiendo los grupos creados por el clustering Ward. Con esto podemos valorar la calidad de la agrupación propuesta. 
+
+En primer lugar, vamos a extraer los centroides de la agrupación propuesta. Debido a que la función utilizada no devuelve lamentablemente los centroides finales de la agrupación, vamos a calcularlos mediante la función nearest centroids dados los datos escalados y el vector de etiquetas asignadas sobre la pertenencia a los distintos grupos. 
+
+```{python}
+from sklearn.neighbors import NearestCentroid
+
+clf = NearestCentroid()
+clf.fit(X_scaled, cluster_labels)
+print(clf.centroids_)
+```
+
+
+
+
+```{python}
+# Representación gráfica: grupos originales vs clusters creados
+# ==============================================================================
+fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+
+# Grupos originales
+for i in np.unique(y):
+    ax[0].scatter(
+        x = X_scaled[y == i, 0],
+        y = X_scaled[y == i, 1], 
+        c = plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
+        marker    = 'o',
+        edgecolor = 'black', 
+        label= f"Grupo {i}"
+    )
+    
+ax[0].set_title('Clusters generados por Ward')
+ax[0].legend();
+
+for i in np.unique(cluster_labels):
+    ax[1].scatter(
+        x = X_scaled[cluster_labels == i, 0],
+        y = X_scaled[cluster_labels == i, 1], 
+        c = plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
+        marker    = 'o',
+        edgecolor = 'black', 
+        label= f"Cluster {i}"
+    )
+    
+ax[1].scatter(
+    x = clf.centroids_[:, 0],
+    y = clf.centroids_[:, 1], 
+    c = 'black',
+    s = 200,
+    marker = '*',
+    label  = 'centroides'
+)
+ax[1].set_title('Clusters generados por Ward')
+ax[1].legend();
+```
+
+
+
+
+```{python}
+plt.show()
+
+```
+
+**Matriz de confusión** con la verdad verdadera. 
+
+
+```{python}
+# Matriz de confusión: grupos originales vs clusters creados
+# ==============================================================================
+pd.crosstab(y, cluster_labels, dropna=False, rownames=['grupo_real'], colnames=['cluster'])
+```
+
+## Clustering K-means
+
+
+```{python}
+# Modelo
+# ==============================================================================
+X_scaled = scale(X)
+modelo_kmeans = KMeans(n_clusters=4, n_init=25, random_state=123)
+modelo_kmeans.fit(X=X_scaled)
+print('Varianza intra: ' + str(modelo_kmeans.inertia_))
+
+print('Centroides')
+print(modelo_kmeans.cluster_centers_)
+
+print('Etiquetas')
+modelo_kmeans.labels_[:5]
+```
+
+
+
+```{python}
+# Clasificación con el modelo kmeans
+# ==============================================================================
+y_predict = modelo_kmeans.predict(X=X_scaled)
+
+silhouette_score(X_scaled, y_predict)
+```
+
+
+
+```{python}
+from sklearn import metrics
+metrics.calinski_harabasz_score(X_scaled, y_predict)
+```
+
+
+
+```{python}
+# Representación gráfica: grupos originales vs clusters creados
+# ==============================================================================
+fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+
+# Grupos originales
+for i in np.unique(y):
+    ax[0].scatter(
+        x = X_scaled[y == i, 0],
+        y = X_scaled[y == i, 1], 
+        c = plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
+        marker    = 'o',
+        edgecolor = 'black', 
+        label= f"Grupo {i}"
+    )
+    
+ax[0].set_title('Clusters generados por Kmeans')
+ax[0].legend();
+
+for i in np.unique(y_predict):
+    ax[1].scatter(
+        x = X_scaled[y_predict == i, 0],
+        y = X_scaled[y_predict == i, 1], 
+        c = plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
+        marker    = 'o',
+        edgecolor = 'black', 
+        label= f"Cluster {i}"
+    )
+    
+ax[1].scatter(
+    x = modelo_kmeans.cluster_centers_[:, 0],
+    y = modelo_kmeans.cluster_centers_[:, 1], 
+    c = 'black',
+    s = 200,
+    marker = '*',
+    label  = 'centroides'
+)
+ax[1].set_title('Clusters generados por Kmeans')
+ax[1].legend();
+```
+
+
+
+
+```{python}
+plt.show()
+
+```
+
+
+
+```{python}
+# Matriz de confusión: grupos originales vs clusters creados
+# ==============================================================================
+pd.crosstab(y, y_predict, dropna=False, rownames=['grupo_real'], colnames=['cluster'])
+```
+
+## Evaluación del número de grupos óptimo en K-means
+
+Vamos a generar una función para facilitar la búsqueda del número de grupos óptimo en relación a 3 métricas. Variabilidad interna de los grupos, silueta y % de variabilidad explicada por los grupos con respecto a la variabilidad total del dataset. 
+
+Con un input consistente en el dataset en bruto de aplicación (se escalará por si acaso dentro de la función) y el numero máximo de grupos a evaluar, proporciona una salida de 3 gráficos para la evolución de las 3 métricas a lo largo del número de clusters de la solución. 
+
+Lo que buscamos es el famoso "codo" en los gráficos, es decir, a partir de qué punto las métricas se estabilizan un poco. Hay que resaultar que la función se programa para empezar en 2 grupos debido a que la silueta no está definida para 1 ó n grupos siendo n el número de registros (recordemos que necesita comparar con el cluster más cercano al de clasificación actual).
+
+```{python}
+# Cremos función scree_plot_kmeans para buscar el número de clusters óptimo 
+# con 3 métricas usuales. Wss, silueta y % de varianza explicada
+# Input: data = dataset en bruto (se escala dentro de la propia función)
+#        n_max = número máximo de grupos a evaluar
+# ==============================================================================
+from scipy.spatial.distance import cdist, pdist
+
+def scree_plot_kmeans(data,n_max):
+  range_n_clusters = range(2, n_max)
+  X_scaled = scale(data)
+  inertias = []
+  silhouette = []
+  var_perc = []
+  
+  for n_clusters in range_n_clusters:
+      modelo_kmeans = KMeans(
+                          n_clusters   = n_clusters, 
+                          n_init       = 20, 
+                          random_state = 123
+                      )
+      modelo_kmeans.fit(X_scaled)
+      cluster_labels = modelo_kmeans.fit_predict(X_scaled)
+      inertias.append(modelo_kmeans.inertia_)
+      silhouette.append(silhouette_score(X_scaled, cluster_labels))
+      tss = sum(pdist(X_scaled)**2)/X_scaled.shape[0]
+      bss = tss - modelo_kmeans.inertia_
+      var_perc.append(bss/tss*100)
+      
+  fig, ax = plt.subplots(1, 3, figsize=(16, 6))
+  ax[0].plot(range_n_clusters, inertias, marker='o')
+  ax[0].set_title("Scree plot Varianza intra")
+  ax[0].set_xlabel('Número clusters')
+  ax[0].set_ylabel('Intra-cluster (inertia)')
+  
+  ax[1].plot(range_n_clusters, silhouette, marker='o')
+  ax[1].set_title("Scree plot silhouette")
+  ax[1].set_xlabel('Número clusters')
+  ax[1].set_ylabel('Media índices silhouette');
+  
+  ax[2].plot(range_n_clusters, var_perc, marker='o')
+  ax[2].set_title("Scree plot % Varianza")
+  ax[2].set_xlabel('Número clusters')
+  ax[2].set_ylabel('% de varianza explicada')
+```
+
+Aplicamos la función a la matriz de puntos simulados en bruto **X**. 
+
+
+```{python}
+scree_plot_kmeans(X,10)
+plt.show()
+```
+
+Los tres criterios son claros, aquí hay 4 grupos! Con un 90% de la variabilidad explicada tenemos la solución kmeans con 4 grupos. 
+
+
+# Ejemplo Países 
+
+Los datos paises.csv, contienen información sobre 3 indicadores (Death_Rate, BIrth_Rate, Infant_Death_Rate) en 97 países. 
+
+El objetivo es conseguir grupos de países con la mayor homogeneidad interna.
+
+```{python}
+# Lectura de datos
+paises = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23\\Datos\\paises.csv')
+
+# Fijamos nombres como index de filas
+#paises.set_index(['City'],inplace=True)
+paises.head()
+```
+
+
+
+```{python}
+#import pyreadr
+
+#paises = pyreadr.read_r('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23\\Datos\\paises.Rds') # also works for Rds
+#paises.keys()
+```
+
+
+
+```{python}
+paises.set_index(['Unnamed: 0'],inplace=True)
+paises.describe()
+```
+
+**Escalado de datos**
+
+En este caso, si fueran tasas medidas en la misma escala, no sería estrictamente necesario el escalado de los datos. Las soluciones deberían conservarse en ambas variantes. 
+
+Sin embargo parece que la escala no es la que podríamos esperar y la tercera variable presenta valores más altos en general, escalamos. 
+
+```{python}
+# Escalado de datos
+# ==============================================================================
+X_scaled = scale(paises)
+```
+
+## Clustering jerárquico
+
+Probamos los métodos jerárquicos y observamos dendogramas para valorar separabilidad y número de grupos tentativos. 
+
+```{python}
+for linkage in ("ward", "average", "complete", "single"):
+    clustering = AgglomerativeClustering(linkage=linkage, n_clusters=None,
+                            distance_threshold = 0)
+    t0 = time()
+    clustering.fit(X_scaled)
+    print("%s :\t%.2fs" % (linkage, time() - t0))
+    
+    plt.clf()
+    plot_dendogram(clustering)
+    #plot_clustering(X_scaled, clustering.labels_, "%s linkage" % linkage)
+
+
+#plt.show()
+```
+
+Escogemos el método de mínima varianza que da resultados bastante claros para 3 grupos con alturas de corte muy definidas. 
+
+
+```{python}
+modelo_hclust_ward = AgglomerativeClustering(
+                            affinity = 'euclidean',
+                            linkage  = 'ward',
+                            n_clusters  = 3
+                     )
+modelo_hclust_ward.fit(X=X_scaled)
+
+cluster_labels = modelo_hclust_ward.fit_predict(X_scaled)
+```
+
+**Silueta clustering Ward**
+
+
+```{python}
+silhouette_score(X_scaled, cluster_labels)
+
+```
+
+**Indice de Calinski-Harabasz clustering Ward**
+
+
+```{python}
+from sklearn import metrics
+metrics.calinski_harabasz_score(X_scaled, cluster_labels)
+```
+
+## Visualización de resultados
+
+Nos interesa ver la agrupación propuesta por el algoritmo de clustering en el espacio original de las variables. De esta forma, se pueden intuir los patrones de agrupación en base a las variables originales. 
+
+En caso de tener muchas variables, se puede recurrir a un PCA previo para la visualización de los resultados, es algo muy habitual y frecuentemente implementado en los métodos de visualización del software (véase fviz de R). En python, hasta el punto que conozco no existe tal funcionalidad automática y tendremos que realizar el proceso de forma "manual" sencillamente haciendo el fit del modelo a los scores de un PCA con por ejemplo dos dimensiones para su mejor visualización. 
+
+
+**Proyección sobre dos variables**
+
+```{python}
+import plotly.express as px
+paises['cluster'] = cluster_labels
+fig = px.scatter(paises, x='Death_Rate',y='BIrth_Rate', color='cluster', text=paises.index)
+fig.show()
+```
+
+**Otra proyección**
+
+
+```{python}
+fig = px.scatter(paises, x='Death_Rate',y='Infant_Death_Rate', color='cluster', text=paises.index)
+fig.show()
+```
+
+**Gráfico en 3 dimensiones** 
+
+
+```{python}
+import plotly.express as px
+paises['cluster'] = cluster_labels
+fig = px.scatter_3d(paises, x='Death_Rate',y='BIrth_Rate', z='Infant_Death_Rate', color='cluster', text=paises.index)
+fig.show()
+```
+
+**Cálculo de centroides para la interpretación**
+
+Es importante en clustering caracterizar los grupos formados en base a sus centroides. Así, se definen características centrales de los grupos sobre las variables originales pudiendo determinar las diferencias y similitudes entre ellos. 
+
+La idea final es obtener una interpretación de los grupos en base a valores medios en las variables del estudio. 
+
+```{python}
+clf = NearestCentroid()
+clf.fit(paises, cluster_labels)
+print(clf.centroids_)
+```
+
+## Cluster K-means
+
+Exploramos ahora la agrupación que propone el algoritmo K-means para el conjunto de datos de paises. 
+
+En primer lugar, vamos a aplicar la función que hemos definido para graficar los screeplots en relación a las 3 métricas comentadas para valorar el número de grupos óptimo y comparar con los propuestos en el dendograma de ward. 
+
+```{python}
+scree_plot_kmeans(paises,10)
+plt.show()
+```
+
+De nuevo, parece que 3 grupos es lo ideal pero nos quedamos con algo menos del 80% de la variabilidad explicada. 
+
+Ajustamos el clustering Kmeans con 3 grupos para extraer resultados y conclusiones.
+
+```{python}
+modelo_kmeans = KMeans(n_clusters=3, n_init=25, random_state=123)
+modelo_kmeans.fit(X=X_scaled)
+```
+
+
+
+
+```{python}
+print('Varianza intra: ' + str(modelo_kmeans.inertia_))
+
+```
+
+
+
+
+```{python}
+print('Centroides')
+print(modelo_kmeans.cluster_centers_)
+```
+
+
+
+
+```{python}
+print('Etiquetas')
+modelo_kmeans.labels_[:5]
+```
+
+### Métricas de evaluación
+
+
+```{python}
+cluster_labels = modelo_kmeans.labels_
+silhouette_score(X_scaled, cluster_labels)
+```
+
+
+
+
+```{python}
+from sklearn import metrics
+metrics.calinski_harabasz_score(X_scaled, cluster_labels)
+```
+
+### Visualización de resultados
+
+
+**Proyección sobre dos variables**
+
+```{python}
+import plotly.express as px
+paises['cluster_kmeans'] = cluster_labels
+fig = px.scatter(paises, x='Death_Rate',y='BIrth_Rate', color='cluster', text=paises.index)
+fig.show()
+```
+
+**Otra proyección**
+
+
+```{python}
+fig = px.scatter(paises, x='Death_Rate',y='Infant_Death_Rate', color='cluster', text=paises.index)
+fig.show()
+```
+
+**Visualización en 3D**
+
+
+```{python}
+fig = px.scatter_3d(paises, x='Death_Rate',y='BIrth_Rate', z='Infant_Death_Rate', color='cluster_kmeans', text=paises.index)
+fig.show()
+```
+
+## Comparativa Ward-Kmeans
+
+Vamos a ver el detalle de las observaciones que has sido clasificadas en distintos grupos por los dos métodos utilizados. 
+
+```{python}
+paises[paises.cluster != paises.cluster_kmeans]
+
+```
+
+
+
+```{python}
+# Establecer correspondencias
+pd.crosstab(paises.cluster,paises.cluster_kmeans)
+
+```
+
+
+
+```{python}
+paises[(paises.cluster == 0) & (paises.cluster_kmeans != 1)]
+
+```
+
+
+
+```{python}
+paises[(paises.cluster == 1) & (paises.cluster_kmeans != 0)]
+
+```
+
+# Datos actuales del Banco mundial 
+
+Pasamos ahora a extraer los datos más actuales desde el banco mundial. En este caso los tenemos en excel ya que los decargué y limpié un poco pero siempre se puede recurrir al scrapping de esta buena fuente de datos!! Para mas información consultar la página del paquete:
+
+https://wbdata.readthedocs.io/en/stable/
+
+Descripción de funciones y parámetros aquí: 
+
+https://wbdata.readthedocs.io/en/stable/wbdata_library.html
+
+## Scrapping rápido 
+
+Con el paquete **wbdata** vamos a coger lo que queremos del Banco Mundial. Hay todo tipo de información, indicadores de lo que se pueda llegar a imaginar por paises a nivel anual e incluso otros como mensual. 
+
+Podemos cargar la librería e investigar un poco. En primer lugar vemos las distintas fuentes de datos disponibles. 
+
+```{python}
+#pip install -U wbdata
+import wbdata  
+
+wbdata.get_topic() 
+```
+
+Podemos consultar la lista de paises disponibles. Cuidado! Aquí son países + agregaciones varias que hay disponibles. Esta parte no está muy conseguida en la descarga y habrá que aplicar el walkaround recomendado por el autor. 
+
+
+```{python}
+#wbdata.get_indicator(source=2)
+#wbdata.get_country()
+#wbdata.get_lendingtype()
+```
+
+**Descarga de datos**. Vamos a descargar un dataframe al estilo pandas que contenga la información que queremos. Estos 3 indicadores por ejemplo para el 2020 y para todos los países (excluyendo agregaciones). Como la fecha tiene que ser datetime, importamos la librería para generar la fecha (podría ser una fecha inicio y fecha fin). Los idicadores pues nos los sabemos pero siempre podemos indagar con searh_indicator() para quedarnos con el id adecuado. 
+
+
+```{python}
+wbdata.search_indicators("death rate") 
+
+```
+
+Tarda un poco pero ahí está, es el id *SP.DYN.CDRT.IN*
+
+
+```{python}
+wbdata.search_indicators("birth rate") 
+
+```
+
+
+
+
+```{python}
+wbdata.search_indicators("mortality", topic=8) 
+
+```
+
+
+
+```{python}
+import datetime
+data_date = datetime.datetime(2020, 1, 1)  #, datetime.datetime(2011, 1, 1)                                                                                      
+countries = [i['id'] for i in wbdata.get_country() if not i['incomeLevel']['value'] == "Aggregates"]  
+indicators = {"SP.DYN.CDRT.IN": "Death rate", "SP.DYN.CBRT.IN": "Birth rate", "SP.DYN.IMRT.IN": "Mortality rate_infant"}         
+
+paises_BM = wbdata.get_dataframe(indicators, country=countries, data_date=data_date)  
+```
+
+
+
+
+```{python}
+paises=paises_BM
+#wbdata.get_topic()
+
+#wbdata.get_indicator(topic=4)
+paises
+```
+
+
+
+```{python}
+# Lectura de datos
+#paises2 = pd.read_excel('Paises_2020_BancoMundial.xlsx')
+
+# Fijamos nombres como index de filas
+#paises.set_index(['City'],inplace=True)
+paises.shape
+```
+
+Hay valores perdidos que estas técnicas no admiten. Haremos un borrado por lista. 
+
+
+```{python}
+paises = paises.dropna()
+paises
+```
+
+Valoramos el número de grupos seleccionando evidentemente solo las avriables de interés que son las numéricas. 
+
+
+```{python}
+scree_plot_kmeans(paises.select_dtypes(np.number),10)
+plt.show()
+```
+
+Ajustamos el clustering Kmeans con 3 grupos para extraer resultados y conclusiones.
+
+
+```{python}
+X_scaled = scale(paises.select_dtypes(np.number))
+modelo_kmeans = KMeans(n_clusters=3, n_init=25, random_state=123)
+modelo_kmeans.fit(X=X_scaled)
+```
+
+
+
+
+```{python}
+print('Varianza intra: ' + str(modelo_kmeans.inertia_))
+
+```
+
+
+
+
+```{python}
+print('Centroides')
+print(modelo_kmeans.cluster_centers_)
+```
+
+
+
+
+```{python}
+print('Etiquetas')
+modelo_kmeans.labels_[:5]
+```
+
+### Métricas de evaluación
+
+
+```{python}
+cluster_labels = modelo_kmeans.labels_
+silhouette_score(X_scaled, cluster_labels)
+```
+
+
+
+
+```{python}
+from sklearn import metrics
+metrics.calinski_harabasz_score(X_scaled, cluster_labels)
+```
+
+### Visualización de resultados
+
+
+**Proyección sobre dos variables**
+
+```{python}
+import plotly.express as px
+paises['cluster_kmeans'] = cluster_labels
+fig = px.scatter(paises, x='Death rate',y='Birth rate', color='cluster_kmeans', text=paises.index)
+fig.show()
+```
+
+**Otra proyección**
+
+
+```{python}
+fig = px.scatter(paises, x='Birth rate',y='Mortality rate_infant', color='cluster_kmeans', text=paises.index)
+fig.show()
+```
+
+**Visualización en 3D**
+
+
+```{python}
+fig = px.scatter_3d(paises, x='Death rate',y='Birth rate', z='Mortality rate_infant', color='cluster_kmeans', text=paises.index)
+fig.show()
+```
+
+**Proyección sobre componentes principales. Biplot**
+
+Ilustramos en esta última parte el proceso para pintar el biplot de la solución de clustering distinguiendo los registros por clusters en el plano de las dos primeras componentes principales del archivo de variables. Este método es muy útil para la visualización de las soluciones especialemnte en alta dimensionalidad, cuando tenemos muchas variables en el archivo original, ya que nos evitamos tener que proyectar sobre muchos pares de variables. 
+
+Para llevar a cabo esta tarea, debemos ajustar un PCA a la matriz de entrada de variables para el clustering. Importante que si hemos escalado los datos de cara al clustering, lo hagamos también para el PCA. Una vez se ajusta el PCA a los datos, necesitaremos la matriz de *scores* de la solución (registros vs. componentes) como nuevas variables que forman el plano de proyección. 
+
+En esta ocasión vamos a recurrir a la librería **pca** y accederemos a la solución para la proyección posterior. 
+
+```{python}
+from sklearn import decomposition as dc
+#pcaModel =dc.PCA(n_components=2).fit(X_scaled)
+# Load library
+from pca import pca
+
+# Initialize pca with default parameters
+pcaModel = pca(normalize=True,n_components=2)
+results = pcaModel.fit_transform(paises.iloc[:,:3])
+```
+
+```{python}
+pcaModel.plot()
+```
+
+```{python}
+# Acceso a las cargas
+pcaModel.results['loadings']
+```
+
+```{python}
+# Visualización biplot para interpretar componentes
+pcaModel.biplot(legend=False)
+```
+
+Con dos componentes retenemos el 96,4% de la variabilidad del archivo. Se observa que la componente 1 está asociada en sentido positivo a tasa de nacimeintos y tasa de muerte infantil, mientras que la componente 2 se asocia a la tasa de muerte. Así, los países del primer cuadrante presentan, altas tasas de nacimiento y muerte infantil con alta tasa de muerte.En cambio, los países del tercer cuadrante, con valores negativos en ambas compoentes, se caracterizan por bajas tasas de nacimiento y muerte infantil unido a una baja tasa de muertes. 
+
+Con esta información podremos evaluar las regiones donde se sitúan los clusters creados. 
+
+```{python}
+# Acceso a scores
+pcaModel.results['PC']
+```
+
+```{python}
+# Unimos variable de cluster_kmeans previamente creada
+paises_pca = pcaModel.results['PC'].join(paises['cluster_kmeans'])
+paises_pca
+```
+
+```{python}
+# Visualización del biplot por cluster
+fig = px.scatter(paises_pca, x='PC1',y='PC2', color='cluster_kmeans', text=paises.index)
+fig.show()
+```
+
+En amarillo los países que se sitúan en el cuadrante 2, con bajas tasas de nacimiento y muerte infantil pero altas tasas de muerte. En azul el mundo interemedio, con tasas bastante repartidas en torno al centro de coordenadas, con tasa de muerte más naja de los tres grupos. En Rojo, el mundo "subdesarrollado" con tasas de nacimiento y muerte infantil altas y tasa de muerte entre media y alta. 
+

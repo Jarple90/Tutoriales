@@ -1,0 +1,679 @@
+---
+title: "Estudio Datos Vino. Depuración de variables"
+author: "Guillermo Villarino"
+date: "Curso 2024-2025"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+En este documento se exploran distintas posibilidades de estudio y depuración de un conjunto de datos con aplicación concreta al dataset de venta de vinos que se encuentra en la carpeta de Datos del material en formato cvs. Dado que la fase de "limpieza" de los datos es a crucial de cara a la obtención de modelos predictivos lo más libres posible de sesgos y problemas de estimación, es conveniente prestar atención e invertir el tiempo necesario en este proceso quizá explorando varias alternativas de las disponibles en base a la naturaleza de las distribuciones de las variables implicadas. 
+
+La fase de depuración de los datos no suele atender a "recetas" pues con cada dataset, el cuerpo nos pedirá cosas distintas. Sin embargo, trataremos de generar un proceso lo más automático posible con los aspectos generales que seguro tenemos que atacar para poder tenerlo como guía de actuación. 
+
+# Estudio descriptivo de datos sobre venta de vinos
+
+En primer lugar, importamos las dos librerías por excelencia, numpy y pandas para trabajar con conjuntos de datos en python, y leemos los datos de entrada consignando la ruta adecuada a nuestra carpeta (evidentemente hay que cambiar la ruta en cada caso, dudo que tengáis carpetar Guille/Documents...jeje). Añadimos la opción de pandas para que muestre todas las filas y columnas de un dataset y no corte las salidas (esto puede ser peligroso con grandes conjuntos de datos!! Siempre tendremos cuidado de mostrar el head del archivo cuando haya peligro)
+
+```{python}
+import pandas as pd
+import numpy as np
+pd.set_option("display.max_rows", None, "display.max_columns", None)
+
+# Lectura de datos
+vinos = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23\\Datos\\DatosVino.csv')
+vinos.head()
+```
+
+Este código está preparado para funcionar sobre los DatosVino. Se presenta en la siguiente tabla, la información sobre las variables contenidas en el archivo.
+
+![Fig1. Descripción de los datos](C:/Users/Guille/Documents/MineriaDatos_Mayo2022/PARTE I_Depuracion y Regresiones/Dia1_MDDepuracion/datosVino.png)
+En la tabla de información de variables que acompaña a los datos, podemos comprobar los tipos que deberían tener las variables y sus posibles limitaciones sobre rangos, categorías "oficiales" etc. Esto nos sirve de guía para ir chequeando lo que deberíamos tener y lo que realmente encontramos (dos cosas que a menudo no van de la mano precisamente...)
+
+## Que comprobar?
+
+En el archivo total comprobaremos lo siguiente:
+
+1- **Tipos de variables**. Todos los factores, lo son realmente en python?
+
+2- **Valores mal codificados**. Hay missings no declarados tipo -1, 99999? Las categorías de las nominales son las que deben? 
+
+3- **Valores fuera de rango**. Hay alguna limitación sobre el rango de alguna variable que no se cumpla? 
+
+4- **Variables nominales o Factores con categorías minoritarias**. Las categorías con baja representación puede causar muchos problemas en los modelos por falta de base muestral para la estimación de los parámetros correspondientes a la pertenencia a esa categoría. Por ello, es conveniente echar un vistazo y recodificar las vairables uniendo categorías muy poco representativas con otras cuya unión tenga algún sentido (tienen comportamiento similar frente a la objetivo, la variable tiene caracter ordinal por lo que la unión con mayor sentido sería hacia categorías adyacentes..)
+
+Con estas cosas ya arregladas, nos vamos a los dos grandes "caballos de batalla" de la depuración. Este proceso para la gestión de outliers y missings lo vamos a llevar a cabo sobre el archivo que llamaremos **input** y que contendrá solamente a los predictores sin incluir las variables objetivo continua y binaria. No es buena idea gestionar estas cosas en las objetivo puesto que las tomamos como la *verdad verdadera* y si tocamos algo ya estamos sesgando de alguna manera la variable de supervisión del proceso de modelización. Más adelante discutimos con mayor profundidad este hecho.  
+
+5- **Outliers**. Incidencia y tratamiento (pasar a missing, eliminar, winsorizar)
+
+6- **Missings**. Incidencia y tratamiento (Eliminar, imputación simple por media, mediana, aleatorio, imputación por modelos)
+
+
+### Tipos de variables
+
+Con la función **info**, podemos obtener un summary de los tipos de variables almacenados en el dataset como python lo ha entendido en la lectura. 
+
+```{python}
+# Información del dataset
+vinos.info()
+```
+
+Se observa que no todas las variables tienen asignado el tipo correcto de datos. Identificamos factores como Compra (columna 3), Etiqueta (columna 12), Clasificación (columna 14) y Región (columna 15). 
+
+### Valores únicos de las variables
+
+Con nunique podemos obtener el número de valores distintos por cada variable para evaluar cuáles deberían ser factores.
+
+```{python}
+# Número de valores distintos por variable
+vinos.nunique()
+```
+
+En principio, claramente los factores seguros tienen menos de 10 valores distintos a excepción de Etiqueta, algo pasa ahí...Ya lo estudiaremos. 
+
+En este punto interesante charla sobre la posible dualidad continuo-categórica de la variable CalifProductor. Por una parte, tiene 13 valores, por lo que supera el umbral comentado de 10 valores distintos para ser considerada como tal. Por otra, con bajo número de valores, la linealidad con la respuesta se hace compleja, con lo que habría que comprobar la existencia de la misma. Considerando la variable como categórica, tenemos la ventaja de poder captar relaciones no lineales puesto que se modela la pertenencia a cada una de las categorías en relación a una de referencia. Sin embargo, hemos de ser conscientes del número de parámetros que consumirá en nuestro modelo $k-1$ siendo K el número de niveles del factor. 
+
+Veamos su histograma.
+
+```{python}
+import plotly.express as px
+# Histograma de calificación del productor
+fig = px.histogram(vinos, x="CalifProductor") 
+fig.show()
+```
+
+Por tanto, podemos adoptar la estrategia de mantener la variable continua por ese aspecto chi-cuadrado que no nos ha disgustado y, a su vez crear una variable categórica y posteriormente evaluar su distribución uniendo aquellas categorías minoritarias siempre con algún sentido, en este caso ordinal. Así tendremos las dos posibilidades para probar en los modelos de predicción que generemos.
+
+Estas son posibles alternativas, en base a puro empirismo y un poco también porque se ve venir que dejar esa variable en un factor como pocas categorías que mantenga su poder predictivo es difícil tarea, decidimos mantenerla como continua.
+
+### Conversión a factor de toda variable con menos de 10 valores distintos
+
+Utilizamos el **.loc** para filtrar por condición sobre valores únicos de variables y creamos la lista de columnas que deberían pasar a factor. Posteriormente, se utiliza **astype** para pasar a categórica.
+
+```{python}
+# Lista de columnas con menos de 10 valores distintos. Potenciales factores!
+to_factor = list(vinos.loc[:,vinos.nunique() < 10]);  
+
+# Podemos cambiar el tipo de todas ellas a factor de una vez
+vinos[to_factor] = vinos[to_factor].astype('category')
+
+```
+
+
+Vamos a contar el número de valores únicos de las variables numéricas por si nos hemos dejado algo por ahí. 
+
+```{python}
+# Número de valores distintos por variable
+vinos.nunique()
+```
+
+En principio la única cosa rara es la variable Etiqueta que no debería tener tantos valores distintos.. 
+
+### Descirptivos para las variables 
+
+
+```{python}
+# Número de valores distintos por variable
+vinos.describe()
+```
+
+Distintas formas de echar el vistazo a las distribuciones de las variables, donde prestaremos atención al *describe* que nos informa sobre cuartiles y media, así como valores perdidos y máximos. Así, observamos que *azucar* tiene valores 99999 sospechosos y *sulfatos* 604 valores ausentes (NA), que alcohol debe tener distribución asimétrica positiva por valores posiblemente altos, de hecho es un % y no debería superar 100. 
+
+Podemos sacar los descriptivos básicos para las categóricas.
+
+```{python}
+# Número de valores distintos por variable
+vinos.describe(exclude=np.number)
+```
+
+### Inspección gráfica
+
+Podemos inspeccionar las distribuciones gráficamente para completar la exploración. En este punto, nos podemos plantear la creación de un par de funciones gráficas que nos faciliten el trabajo, de tal forma que las podamos aplicar al dataset completo para visualizarlo de un plumazo. 
+
+En primer lugar, como me gusta ver el histograma y el boxplot en relación para cada variable, vamos a definir una función que nos saque ambos gráficos jusntos. Podríamos adoptar varias formas de pensar de cara a la programación, por flexibilidad, decidimos que la función trabaje sobre una potencial columna o variable, así podremos aplicarla a todas o parte de las columnas del dataset.
+
+```{python}
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def histogram_boxplot(data, xlabel = None, title = None, font_scale=2, figsize=(9,8), bins = None):
+    """ Boxplot and histogram combined
+    data: 1-d data array
+    xlabel: xlabel 
+    title: title
+    font_scale: the scale of the font (default 2)
+    figsize: size of fig (default (9,8))
+    bins: number of bins (default None / auto)
+
+    example use: histogram_boxplot(np.random.rand(100), bins = 20, title="Fancy plot")
+    """
+    # Definir tamaño letra
+    sns.set(font_scale=font_scale)
+    # Crear ventana para los subgráficos
+    f2, (ax_box2, ax_hist2) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.15, .85)}, figsize=figsize)
+    # Crear boxplot
+    sns.boxplot(x=data, ax=ax_box2)
+    # Crear histograma
+    sns.histplot(x=data, ax=ax_hist2, bins=bins) if bins else sns.histplot(x=data, ax=ax_hist2)
+    # Pintar una línea con la media
+    ax_hist2.axvline(np.mean(data),color='g',linestyle='-')
+    # Pintar una línea con la mediana
+    ax_hist2.axvline(np.median(data),color='y',linestyle='--')
+    # Asignar título y nombre de eje si tal
+    if xlabel: ax_hist2.set(xlabel=xlabel)
+    if title: ax_box2.set(title=title, xlabel="")
+    # Mostrar gráfico
+    plt.show()
+
+histogram_boxplot(vinos.Beneficio, bins = 20, font_scale=1, title="Distribción de Beneficio")
+
+```
+
+Seguidamente vamos a implementar una función sencilla para sacar un barplot (aquí podéis indagar posibilidades de otros paquetes de visualización para *customizar* vuestros informes al gusto). Vamos a tirar de plotly a ver..
+
+```{python}
+def cat_plot(col):
+     if col.dtypes == 'category':
+        fig = px.bar(col.value_counts())
+        #fig = sns.countplot(x=col)
+        return(fig)
+
+# Aplicación a una variable en particular    
+cat_plot(vinos.Compra)
+```
+
+
+```{python}
+# Variable Etiqueta
+cat_plot(vinos.Etiqueta)
+```
+
+Una vez definidas las funciones para gráficos de variables numéricas y nominales, podemos integrar el proceso en una sola función que pueda ser aplicada a todas o parte de las columnas y distinga el tipo de las mismas para escoger el gráfico adecuado y mostrarlo.
+
+```{python }
+
+def plot(col):
+     if col.dtypes != 'category':
+        print('Cont')
+        histogram_boxplot(col, xlabel = col.name, title = 'Distibución continua')
+     else:
+        print('Cat')
+        cat_plot(col)
+        
+# Aplicar a una serie de columas 1:9 del data
+vinos.iloc[:,1:9].apply(plot)
+```
+
+
+## Corrección de errores detectados
+
+1. *Etiqueta* tiene 10 categorías y debería tener 5. Hacemos una tabla de frecuencias de las categorías para indagar.
+
+```{python}
+# Tabla de frecuencias
+vinos.Etiqueta.value_counts()
+```
+
+Parece que hay mayúsculas y minúsculas. Habrá que unificar para que la variable tenga sentido. Lo más inmediato es pasar a mayúsculas o minúsculas todo y sencillamente se arreglará. 
+
+Podemos utilizar el apply con lambda para ver cómo quedaría el cambio (también podríamos utilizarlo para cambiarlo asignando a la variable y "pisando" la información)
+
+```{python}
+# Utilizar apply con lambda para ver como quedaría el cambio
+vinos['Etiqueta'].apply(lambda x: x.upper()).value_counts(sort=False)
+```
+
+Tiene buena pinta. Podemos hacer el cambio sencillamente con operaciones sobre cadenas de caracteres de pandas *.str* y la función *upper()* para transformación en mayúsculas. 
+
+```{python}
+# Realizar el cambio en la propia variable y cambiar el tipo a categórica
+vinos['Etiqueta'] = vinos['Etiqueta'].str.upper().astype('category')
+```
+
+Ya que estamos con motivación, vamos a reordenar el factor para que MM sea el primer nivel o el más bajo y MB sea el último, manteniendo la naturaleza ordinal de la variable. 
+
+```{python}
+# Vamos a ordenar el factor como nos gustaría tenerlo
+vinos["Etiqueta"] = vinos["Etiqueta"].cat.reorder_categories(['MM','M','R','B','MB'])
+
+# A ver como está el tema ahora
+vinos.Etiqueta.value_counts()
+```
+
+La tabla de frecuencia de *value_counts()* ordena por defecto las categorías por volumen de registros o frecuencia, pero siempre podemos decirle que no lo haga, con lo que mostrará el orden original del factor. 
+
+```{python}
+# Tabla de frecuencias sin ordenar por volumen
+vinos.Etiqueta.value_counts(sort=False)
+```
+
+2. **Azucar**. Tiene un gráfico directamente ilegible...está claro que hay un NA no declarado con valor 99999. Hay que reemplazarlo por un verdadero missing. En python, podemos asignar un valor missing con la función nan de numpy. Al realizar el cambio con la filosofía inplace, se pisa la información original en la columna del dataset. 
+
+Cuidado con utilizar esto cuando no tenemos muy claro que el cambio es correcto!! Habría que volver atrás a datos brutos y volver a ejecutar.. que bueno, por otro lado es gratis, pero mejor para pruebas trabajar con copias o con inplace=False.
+
+```{python}
+# Quitamos ese 99999 de la variable Azucar y lo pasamos a NA
+vinos.Azucar.replace(99999,np.nan,inplace=True)
+
+# Comprobamos el nuevo máximo
+vinos.Azucar.max()
+
+```
+
+3. **Alcohol**. La tabla de info de las variables nos dice que es un % y debe estar por tanto restringido al rango 0-100. Todo valor fuera de ese rango habrá que tomarlo como valor perdido pues no podemos asignar claramente a otros valores en principio. Aquí podemos utilizar el *where* de numpy o bien el *between* de pandas.
+
+```{python}
+# Corregimos valores fuera de rango de Alcohol (recordemos que es un %). Opción con np.where de nuumpy
+#vinos.Alcohol = np.where((vinos['Alcohol'] < 0) | (vinos['Alcohol'] >100), np.nan,vinos.Alcohol)
+
+# Opción con .loc de pandas
+vinos.loc[~vinos.Alcohol.between(0, 100), "Alcohol"] = np.nan
+
+# Comprobamos nuevos límites de la variable
+vinos.Alcohol.min(),vinos.Alcohol.max()
+```
+
+4. **Clasificación**. Veíamos esa categoría ? que nos llama la atención. Veamos si se trata de algo residual y podemos pasar a missing para imputar posteriormente o si es una categoría con importancia en volumen y patrón frente al objetivo. 
+
+```{python}
+# Frecuencias de las categorías de clasificación
+vinos.Clasificacion.value_counts()
+
+# Tabla de contingencia con la variable objetivo binaria Compra
+pd.crosstab(index=vinos['Compra'], columns=vinos['Clasificacion'])
+```
+
+Reemplazar los ? por Desconocido pues representa una categoría importante en volumen y con un posible patrón interesante ante la variable objetivo. Se intuye que los vinos de clasificación desconocida tienen bastante menor probabilidad de compra! utilizamos el *replace* para la tarea de cambio de valores.
+
+```{python}
+# Reemplazar los ? por Deconocido pues representa una categoría importante en volumen y con un posible patrón interesante
+vinos.Clasificacion.replace('?','Desc',inplace=True)
+
+```
+
+
+Una vez libres de errores graves, las variables están preparadas para la gestión de outliers y missing. Para ello, es importante separa las variables objetivo y trabajar en el archivo de predictores. No es habitual tocar las variables objetivo puesto que representan nuestra verdad verdadera, son las variables de supervisión y se presuponen bien recogidas. 
+
+Imaginemos que se nos presenta la situación en la que tenemos valores missing en las objetivo, que deberíamos hacer? Pues tratar estas instancias como un conjunto de test sobre el que podríamos hacer predicciones y valorar si el modelo parece tener sentido. El problema es que no podremos evaluar la calidad de las estimaciones mediante el error cometido puesto que no tenemos su verdad verdadera. Serían como instancias de un verdadero test futuro! Aquí utilizamos asignación de las objetivo a un objeto externo al data frame y luego el borrado de las variables del data. En este caso utilizamos *drop* pero seguramente podríamos usar *remove* en su lugar. 
+
+```{python}
+#Indico la variableObj, el ID y las Input 
+# los atípicos y los missings se gestionan sólo de las input
+varObjCont = vinos.Beneficio
+varObjBin = vinos.Compra
+imput = vinos.drop(['Beneficio','Compra'],axis=1)
+
+imput.head()
+```
+
+# Valores atípicos 
+
+Para facilitarnos la vida y complementar la idea que tenemos ya sobre las distribuciones de las variables, llevamos a cabo un conteo de los valores que se consideran extremos según un consenso de dos criterios distintos. En primer lugar, se distingue variable simétrica o posiblemente no, para aplicar *media + 3 sd* ó *mediana + 8 mad*, respectivamente. Recordamos en este punto que todas las medidas de dispersión basadas en la mediana o cuartiles son muy poco sensibles a la presencia de asimetría en la distribución, siendo por ello más fiables en este caso. Por otro lado, aplicamos el clásico criterio del boxplot umbrales en *cuartil1 - 3IQR* y *cuartil3+ 3IQR*. 
+
+Para aclarar, veamos un momento las asimetrías de las variables numéricas.
+
+```{python}
+vinos.select_dtypes(include=np.number).apply(lambda x: x.skew())
+```
+
+Asimetrías en valor absoluto mayores a la unidad son signo de distribución significativamente sesgada a la derecha/positiva (+) o izquierda/negativa (-). 
+
+
+Antes de gestionar aquellos valores detectados como outliers, valoramos la incidencia en cada variable contando el porcentaje de registros atípicos en relación al total de registros. Con ello, evaluamos si estamos ante un problema grave (tener más de un 20% de valores atípicos en alguna variable es síntoma de distribución bimodal, hay en realidad dos poblaciones jugando en la distribución) o si por el contrario, se trata de un % bajo con el que podamos lidiar sin graves consecuencias en las distribuciones de las variables. 
+
+Vamos a crear una **función gestiona_outliers** para facilitar el trabajo en este sentido. La idea es tener una sola función que implemente:
+
+1- **Visualización de la incidencia** de outliers --> Toma de decisiones
+
+2- **Gestión** de los mismos: 
+
+  2.1- **Winsorizar**: Colapsar todo valor mayor o menor que los umbrales de cierto rango (dado por percentiles habitualmente) para igualarlo con esos umbrales. Como ya comentábamos, este método conserva la integridad del datos en el sentido de que si era muy grande por la derecha ahora estará en el extremo, pero puede provocar carga excesiva de las colas de la distribución, generando quizá algunas rarezas en picos de densidad.. 
+  
+  2.2- **Convertir en NAs**: Asumiendo que los valores extremos son inaceptables (es decir, se sospecha que no puede ser tan alto o bajo por alguna razón). Podríamos pensar en que sea un fallo y por tanto decidir pasar a missing esos valores para luego gestionarlos con los valores perdidos. Esta técnica podría incurrir en errores graves de cambio del sentido de la información. Por ejemplo, en este caso un vino muy caro, pero que es un vino real y ese es su precio, es lo que hay...bueno considerando que es erróneo, pasamos a Na e imputamos por media o valor aleatorio, quedando este valor de precio en un entorno central...tal vez hay características que generaban un patrón de precio alto que ahora serán mal aprendidas por el modelo... Hay que andarse con ojo con estas cosas.. 
+  
+En cualquier caso, ahí queda la función para utilizarla como se considere y tal vez incluir o desarrollar nuevas formas de tratamiento.. 
+
+```{python}
+## Función manual de winsor con clip+quantile 
+def winsorize_with_pandas(s, limits):
+    """
+    s : pd.Series
+        Series to winsorize
+    limits : tuple of float
+        Tuple of the percentages to cut on each side of the array, 
+        with respect to the number of unmasked data, as floats between 0. and 1
+    """
+    return s.clip(lower=s.quantile(limits[0], interpolation='lower'), 
+                  upper=s.quantile(1-limits[1], interpolation='higher'))
+```
+
+```{python}
+## Función para gestionar outliers
+def gestiona_outliers(col,clas = 'check'):
+    
+     print(col.name)
+     # Condición de asimetría y aplicación de criterio 1 según el caso
+     if abs(col.skew()) < 1:
+        criterio1 = abs((col-col.mean())/col.std())>3
+     else:
+        criterio1 = abs((col-col.median())/col.mad())>8
+     
+     # Calcular primer cuartil     
+     q1 = col.quantile(0.25)  
+     # Calcular tercer cuartil  
+     q3 = col.quantile(0.75)
+     # Calculo de IQR
+     IQR=q3-q1
+     # Calcular criterio 2 (general para cualquier asimetría)
+     criterio2 = (col<(q1 - 3*IQR))|(col>(q3 + 3*IQR))
+     lower = col[criterio1&criterio2&(col<q1)].count()/col.dropna().count()
+     upper = col[criterio1&criterio2&(col>q3)].count()/col.dropna().count()
+     # Salida según el tipo deseado
+     if clas == 'check':
+            return(lower*100,upper*100,(lower+upper)*100)
+     elif clas == 'winsor':
+            return(winsorize_with_pandas(col,(lower,upper)))
+     elif clas == 'miss':
+            print('\n MissingAntes: ' + str(col.isna().sum()))
+            col.loc[criterio1&criterio2] = np.nan
+            print('MissingDespues: ' + str(col.isna().sum()) +'\n')
+            return(col)
+
+          
+# Llamada en modo check
+imput.select_dtypes(include=np.number).copy().apply(lambda x: gestiona_outliers(x))
+```
+
+
+Como pequeño resumen, lo que buscamos con el tratamiento de outliers es identificar valores verdaderamente extremos y que no sea típicos, lo cual necesariamente implica que han de ser pocos!! Y esto es muy relevante. Si son el 20% de los registros...pues tal vez estamos ante dos poblaciones distintas... habría que abordar el problema de otra forma..tal vez tratar cada población por separado.
+
+Es evidente que la búsqueda o gestión de outliers aplica únicamente a variables de tipo numérico por lo que podemos crear el subconjunto de estas variables, tratarlas y posteriormente volver a juntar con las categóricas sobre las que no aplica este análisis. 
+
+```{python }
+# Crear copia para evitar pisar información
+vinCont = imput.select_dtypes(include=np.number).copy()
+
+# Aplicar la gestión de outliers en modelo winsor
+vinos_winsor = vinCont.apply(lambda x: gestiona_outliers(x,clas='winsor'))
+
+# Contemos si ha desaparecido algún resgitro o algo 
+# vinos_winsor.apply(lambda x: x.isna().sum()/x.count()*100)
+```
+
+
+```{python }
+# Veamos los valores mínimos de acidez ahora
+vinos_winsor.sort_values(by='Acidez').head()
+```
+
+
+```{python }
+# Veamos los valores mínimos de acidez ahora
+vinos.sort_values(by='Acidez').head()
+```
+
+Recordemos que la búsqueda de outliers atañe en exclusiva a las variables numéricas por lo que el archivo de salida no tiene los factores. Vamos a juntar numéricas y factores en un solo archivo para valorar la incidencia de perdidos en el conjunto completo. 
+
+```{python}
+
+# Juntar columnas con join
+imput_wins = vinos_winsor.join(imput.select_dtypes(exclude=np.number))
+
+```
+
+
+Muchas alternativas disponibles, lo importante es conocer las fortalezas y debilidades de cada uno y aplicarlo con lógica según resulte más conveniente para los datos que manejamos. 
+
+# Valores perdidos 
+
+Entramos de lleno en la segunda gran gestión que debemos llevar a cabo antes de la modelización. Los archiconocidos valores perdidos. En primer lugar comentar que, llegados a este punto tenemos valores perdidos de dos fuentes distintas, por una parte los que vienen "de serie" en el dataset que podemos asociar a falta de medida en la recogida de los datos y aquí existe toda una teoría sobre los mecanismos de aparición de dichos missing, completamente al azar (MCAR), al azar(MAR) o nada de azar y existe patrón (MNAR). 
+
+Dejo por aquí un poco más de información y diversos métodos propuestos para la imputación de estos valores. 
+
+https://stefvanbuuren.name/fimd/sec-MCAR.html
+
+Nuestro objetivo, en este limitado módulo, será valorar la incidencia de los valores perdidos y conocer los métodos usuales de imputación univariante (cada variable independientemente de las otras) con sus pros y contras. 
+
+Que podemos hacer con los missings? 
+
+1) **Eliminar u omitir del dataset**
+
+Eliminar "por lista" los Nas, es decir, eliminar del dataset toda observación con al menos un NA en al menos 1 variable. Se consigue liberar el dataset de perdidos (algunas técnicas y análisis no permiten su inclusión) pero se puede incurrir en los problemas que comentamos en el siguiente punto. 
+
+2) **Nada** 
+
+Podemos obviar la presencia de valores perdidos y ya el modelo se encargará de quitarlos "por lista", es decir, eliminar del análisis toda observación con al menos un NA en el set de variable escogido (importante este punto! si elegimos un modelo con las variables v1:v5, no se eliminarán los registros completos en estas variables pero con perdidos en v6:v10, he aquí la diferencia con la omisión de missings de primeras para toto el archivo). Esto es habitual y se puede hacer, ahora bien no está exento de peligros. Veamos.
+
+- Peligro de los **missings cruzados**. Imaginamos el caso en que tenemos 10 variables y 100 registros y cada una de ellas tiene un 5% de perdidos...No parece mucho con lo cual los quitamos por lista. Nuestro pensamiento es 5% pero, si se da el caso de que los NA de cada variable aparecen en registros distintos...entonces tenemos 5*10= 50% de los registros con al menos un perdido...hemos perdido la mitad de la información!!! 
+
+- **Sesgo** por valores perdidos. El simple hecho de eliminar observaciones por el mero hecho de que presenten perdidos puede introducir un importante sesgo de selección de registros en los modelos. Imaginemos que la gente mayo tiende a no contestar ciertas preguntas en una encuesta, eliminamos y nos quedamos con muy poca gente mayor por lo que las conclusiones con toda seguridad estarán sesgadas hacia los jóvenes. 
+
+3) **Imputar** sus valores. 
+
+No queremos exponernos a lo anterior por lo que se puede adoptar la estrategia de asignar un valor a estos datos no conocidos. 
+
+- **Imputación por valores centrales (media, mediana)**: Muy habitual asignar valores centrales ya que no alteran la distribución de las variables como tal. El gran inconveniente de este método es a subestimación de la verdadera varianza de la variable ya que estamos centrando demasiado la distribución haciendo que artificialmente su varianza se reduzca, en ocasiones muy drásticamente. 
+
+- **Imputación por valores aleatorios**: Si no queremos centrar tanto la distribución, podemos optar por asignar al azar valores observados de las distribuciones de cada variable a los registros con NA. De esta forma, cualquier valor en el rango observado puede ser asignado a los faltantes. El gran inconveniente de esto es la dependencia del azar.
+
+- **Imputación por modelos multivariantes**: Muchas opciones en este apartado. Existen métodos que tienen en cuenta los valores observados de otras variables para asignar el valor más "plausible" a la variable perdida en un sentido conjunto. Una de las alternativas es generar imputaciones por un modelo de regresión por ejemplo, así para imputar Azucar utilizaremos un modelo que estime los valores de azucar en base a las demás variables (que se ajustará con los valores validos por lista) y posteriormente predeciremos los perdidos de azucar mediante este modelo generado. De esta misma forma existen modelos de imputación por random forest (missforet), vecinos más cercanos (knn), cadenas de Markov (hmisc, amelia) y gran cantidad de aproximaciones de imputación múltiple (imputar n veces y promediar). El mayor problema de estos métodos suele radicar en el posible sobreajuste a los datos de training. 
+
+
+El primer paso es valorar la incidencia de los valores perdidos ya que si no representan gran proporción, no existe gran peligro de cambio en la distribución de las variables con independencia del método utilizado para la imputación.  
+
+## Incidencia 
+
+Vamos a actuar por dos vías, filas y columnas para contar el % de perdidos en cada registro y en cada variable. Con esta información tomaremos decisiones sobre gestión. 
+
+
+- **Missings por variable**.
+
+Calculasmo el porcentaje de registros que se encuentran perdidos por cada variable conel objetivo de valorar la incidencia por columnas. Hay variables que tienen demasiada información perdida? Digamos que si % de missing en una variable es >50%, "inventarse" la mitad de la información de esa variable tiene un riesgo altísimo de provocar sesgos en el futuro modelo predictivo y tal vez sería mejor idea eliminarla. 
+
+```{python}
+#Proporción de missings por variable 
+imput_wins.apply(lambda x: x.isna().sum()/x.count()*100)
+
+```
+
+
+Controlado esto, vemos que sulfatos es la variable más peligrosa con más de un 10% de perdidos..Digamos que es la variable en la que mayores dudas tenemos respecto a la conservación de su distribución tras la imputación. Por lo demás, valores relativamente bajos. 
+
+
+- **Missings por observación**.
+
+Calcularemos ahora el % de missings por observación y vamos a aplicar un truquiflor que a veces nos ayuda mucho a controlar las imputaciones. Se trata de generar una variable en el archivo que cuanta la proporción de perdidos que tiene cada registro. De esta forma siempre tenemos una huella de los registros con alta carga de imputaciones por si necesitamos saber algo sobre ellos en la etapa de modelado. Es más, esta será una variable que incluiremos en el modelo para valorar si puede generar un patrón de comportamiento respecto a la variable objetivo. 
+
+
+```{python}
+#Proporción de missings por observación (como una nueva columna del dataset)
+imput_wins['prop_missings'] = imput_wins.apply(lambda x: x.isna().sum()/x.count()*100,axis=1)
+
+# Valoramos distribución
+imput_wins.prop_missings.describe()
+```
+
+Vamos a ordenar el archivo por la nueva variable creada para ver el aspecto.
+
+```{python}
+imput_wins.sort_values(by='prop_missings', ascending=False).head()
+```
+
+
+Se puede observar que la incidencia por registro no escandalosa teniendo algo así como un máximo de 3 variables perdidas por registro, asequible. 
+
+Es importante saber que, en el caso de decidir eliminar registros con gran cantidad de variables perdidas y por tanto incurrir en el borrado de filas del dataset, tenemos que aplicar el mismo filtro a las variables objetivo para que al unir el input depurado con ellas, los registros cuadren! 
+
+
+## Coexistencia y patrones de missings
+
+Podemos echar un vistazo a la correlación en la existencia de missings para valorar si existe algún patrón de aparición de los mismos. En caso de que observemos patrones de aparición, podemos tirar del hilo e indagar el porqué de ese comportamiento para decidir el método más adecuado para imputar. 
+
+Hay un paquete disponible llamado **missingno** que implementa un par de funciones gráficas interesantes para la detección de patrones de co-aparición de los valores perdidos en diferentes variables. 
+
+```{python}
+#conda config --add channels conda-forge
+#conda install missingno
+# pip install missingno
+import missingno as msno   
+
+# Plot correlation heatmap of missingness
+msno.matrix(imput_wins.sort_values(by='Azucar'))
+```
+
+No se intuyen patrones de aparición de missings con facilidad.  
+
+Veamos esto en el mapa de calor que representa el valor de correlación en la matriz 0-1 de aparación o no de perdidos en cada registro-variable. Si la correlación es alta, significa que es probable encontrar perdidos en los mismos registros para esas dos variables, con lo cual habría un patrón de coexistencia y el peligro de sesgos debidos a los valores perdidos sería mayor. 
+
+```{python}
+msno.heatmap(imput_wins)
+```
+
+Relaciones muy débiles con ese máximo de 0.1 para pH con Región. Nada destacable. 
+
+## Imputaciones
+
+Llegados a este punto, hemos comprobado que la incidencia de valores perdidos no es preocupante en general (con sulfatos con ese 10% que nos invita a estar atentos) por lo que vamos a decidirnos por la imputación de los datos de cara a mantener la mayor base muestral posible para el ajuste de los futuros modelos a los datos. 
+
+Nos puede la curiosidad y nos planteamos que pasaría si elimináramos los NAs por lista del dataset. Cuantas observaciones perderíamos? Las variables que mayor carga de perdidos presentan, son realmente relevantes para un posible modelo? 
+
+```{python}
+imput_wins.dropna().describe()
+```
+
+Nos quedamos con 4692 registros en total para todas las variables, lo que supone un 73% de la información del archivo. Nos hemos cargado el 27% de registros.. 
+
+Como veremos cuando estudiemos las relaciones con las variables objetivo, en este dataset, las variables numéricas o características químicas (todas esas distribuciones super apuntadas) no generan especial patrón con las objetivo por lo que no serán predictores relevantes. Si nos cargamos ahora información en base a sus faltantes estaremos limitando o sesgando la capacidad del modelo (que seguramente no contenga a estas variables y pueda utilizar esos registros) por disminución (además no aleatoria) de base muestral. 
+
+Conclusión, imputemos! 
+
+Vamos a explorar algunas posibilidades de los paquetes *sklearn* y *feature_engine* para imputaciones simples y multivariantes de varios tipos. 
+
+Definiremos los imputadores disponibles y posteriormente los aplicaremos a los datos.
+
+```{python}
+
+import sklearn.impute as skl_imp
+from sklearn.experimental import enable_iterative_imputer
+# Moda: Solo nominales
+imputer_moda = skl_imp.SimpleImputer(strategy='most_frequent', missing_values=np.nan)
+# knn: Solo numéricas
+imputer_knn = skl_imp.KNNImputer(n_neighbors=3)
+# Chain equations: solo numéricas
+imputer_itImp = skl_imp.IterativeImputer(max_iter=10, random_state=0)
+
+import feature_engine.imputation as fe_imp
+# Aleatoria: numéricas y nominales
+imputer_rand = fe_imp.RandomSampleImputer()
+# Mediana: solo numéricas
+imputer_median = fe_imp.MeanMedianImputer(imputation_method='median')
+# Media: solo nominales
+imputer_mean = fe_imp.MeanMedianImputer(imputation_method='mean')
+
+```
+
+Separaremos el dataset de nuevo en continuas y categóricas para aplicar los métodos que correspondan. 
+
+```{python}
+imput_wins_cont = imput_wins.select_dtypes(include=np.number)
+imput_wins_cat = imput_wins.select_dtypes(exclude=np.number)
+```
+
+### Posibilidades para las **numéricas**:
+
+1. Nivel **univariante**
+
+Comenzamos proponiendo métodos de imputación univariante que se basan en la información exclusiva de la distribución de la propia variable sin mirar a sus compañeras. En este plano, opciones ya comentadas como media, mediana o aleatorio. 
+
+```{python}
+# Media
+vinos_winsor_mean_imputed = imputer_mean.fit(imput_wins_cont).transform(imput_wins_cont)
+# Mediana
+vinos_winsor_median_imputed = imputer_median.fit(imput_wins_cont).transform(imput_wins_cont)
+```
+
+2. Nivel **multivariante**
+
+Podemos explorar un par de posibilidades que se utilizan en el mundillo. Por una parte, las imputaciones basadas en la técnica de los k vecinos más cercanos (digamos que es un método espacial) que asocia valores promedio de los k vecinos más cercanos a la observación perdida pero jugando en el espación R^k siendo k el número de variables. Es decir, identifica registros parecidos en general en todas las variables (que estén cerca en ese hiperespacio), lo cual es una buena idea. El mayor problema que tiene es la dependencia del valor k (no hay consenso en este aspecto y depende de los datos) y el posible sobreajuste a los datos de training como cualquier otro método multi. 
+
+```{python}
+# Fit/transform
+imput_wins_knn_imputed = pd.DataFrame(imputer_knn.fit_transform(imput_wins_cont),columns=imput_wins_cont.columns)
+imput_wins_itImp_imputed = pd.DataFrame(imputer_itImp.fit_transform(imput_wins_cont),columns=imput_wins_cont.columns)
+
+```
+
+
+### Posibilidades para las **nominales**:
+
+Para las variables categóricas podemos utilizar moda (la categoría más representada) o aleatorio. 
+
+```{python}
+imput_wins_moda_imputed = pd.DataFrame(imputer_moda.fit_transform(imput_wins_cat),columns=imput_wins_cat.columns)
+
+```
+
+En este punto podríamos generar el dataset de configuración personalizada de imputaciones juntando las columnas numéricas imputadas con las categóricas imputadas. 
+
+```{python}
+# Ejemplo de creación del data depurado con la configuración seleccionada knn+moda
+vinos_wins_knn_moda = pd.concat([imput_wins_knn_imputed,imput_wins_moda_imputed,varObjCont,varObjBin], axis=1)
+vinos_wins_knn_moda.describe()
+```
+
+
+```{python}
+vinos_wins_knn_moda.describe(exclude=np.number)
+```
+
+De esta forma seleccionamos nuestra alternativa y podríamos guardar el archivo depurado junto con las variables objetivo para poder utilizarlo en la fase de creación de modelos predictivos.
+
+```{python}
+# Guardar archivo knn+moda
+vinos_wins_knn_moda.to_csv('DatosVinoDep_winsKnnModa.csv')
+```
+
+### Imputación aleatoria para todo tipo de variables
+
+Aplicar random a nivel general ya que acepta todo tipo. Aquí utilizamos el archivo input completo ya que todas las variables son aceptadas. 
+
+```{python}
+imput_wins_rand_imputed = imputer_rand.fit(imput_wins).transform(imput_wins)
+imput_wins_rand_imputed.describe()
+```
+Siempre podemos realizar una comparativa de los estadísticos básicos de las distribuciones ante distintas imputaciones y comparar con los descriptivos de las variables con solamente valores válidos dados en el inicio del documento. La idea sería que cuanto menor cambio se produzca en ellos, más fidelidad de las imputaciones con respecto al archivo original (aquí los máximos y mínimos es normal que cambien por la gestión de los outliers!!)
+
+
+# Toma de decisiones y guardado del archivo depurado
+
+En este punto, decidimos quedarnos con la filosofía outliers por winsor y NAs por imputación aleatoria por sencillez de aplicación a todo el dataset. 
+
+```{python}
+# Agregar variables objetivo al input ya limpio
+vinos_wins_rand_imputed = pd.concat([imput_wins_rand_imputed, varObjCont,varObjBin], axis=1)
+
+# Guardar archivo
+vinos_wins_rand_imputed.to_csv('DatosVinoDep_winsRand.csv')
+```
+
+Ya tenemos los datos depurados para poder empezar con el modelado. Es importante saber que a la hora de modelar utilizaremos este nuevo conjunto **datosVinoDep_metodos** y no el original, que para eso nos lo hemos trabajado. 
+
+
+**Notas:**
+
+1) Debido a la elección del método de imputación por valores aleatorios, cada ejecución de este script generará un conjunto de datos depurados con ligeras diferencia en distribución de las variables sometidas a dicho proceso. Esto es natural y, dado que la verdadera distribución de los valores de los perdidos se desconoce en teoría, cualquiera de las soluciones sería plausible. Este comportamiento provoca que el posterior proceso de modelización con base en los datos depurados presente valores dependientes de la ejecución concreta de este primer paso. La idea es que nuestra limpieza de los datos sea relativamente robusta, por lo que los cambios deberían ser muy ligeros y no producirse cosas como cambio radical de influencia de las variables en los modelos o muy distintas capacidades de predicción sobre los datos de test. Si esto pasa, sospecharemos que nuestro proceso preliminar produce sesgos peligrosos y tendremos que repasar en especial el tratamiento de outliers y su conversión a valores perdidos (son lo que más influencia tienen en este hecho!)
+
+2) Es evidente que muchas tipos de tratamiento de variables son posibles y normalmente es buena política "jugar" lo máximo con ellos y proponer distintas recodificaciones para aumentar nuestras posibilidades en la búsqueda de esos patrones ocultos que relacionan la variabilidad de las variables y que serán descubiertos por el modelo para ofrecer predicciones decentes. 
+
+3) Antes de lanzarse a las imputaciones es conveniente pensar si existen relaciones entre variables de manera natural, por ejemplo cuando dos continuas tienen una relación lineal fortísima digamos 0.9 de coeficiente de correlación r de Pearson, podría ser muy buena idea asignar directamente valores faltantes de una de ellas cuando la otra presenta valor conocido, así podemos reducir la incertidumbre y el sesgo de las imputaciones. De igual forma, relaciones transitivas tipo A ~ B*C (el producto de B y C presenta una correlación alta con la variable A). Oye pues cuando A está perdida y ese registro tiene los valores de B y C conocido, en lugar de imputarle su valor de A, asignamos directamente. 
+
+4) En cuanto a código y ejecuciones en RMD, por las dudas. Los chunks contienen el código y pueden ser ejecutados por separado en su totalidad con el boton del play (parte superior derecha del chunk), línea a línea con ctrl+enter o el botón Run. Hemos de saber que a la hora de compilar el documento, las rutas deben ser válidas y contener los elementos que se requieren! El tipo de documento que se genera se controla en la cabecera y hay muchísimas posibilidades tanto en html como en word o pdf. Os animo a investigar formatos de vuestro agrado. 

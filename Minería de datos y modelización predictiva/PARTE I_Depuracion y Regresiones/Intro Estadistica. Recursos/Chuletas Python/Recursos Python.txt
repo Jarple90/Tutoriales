@@ -1,0 +1,14 @@
+´https://jakevdp.github.io/PythonDataScienceHandbook/
+
+https://www.py4e.com/
+
+https://github.com/TomAugspurger/effective-pandas
+
+https://www.academia.edu/36391322/Learn_Data_Analysis_with_Python_Lessons_in_Coding
+
+https://www.academia.edu/38737647/Python_Data_Science_Handbook
+
+https://www.geeksforgeeks.org/data-wrangling-in-python/
+
+
+

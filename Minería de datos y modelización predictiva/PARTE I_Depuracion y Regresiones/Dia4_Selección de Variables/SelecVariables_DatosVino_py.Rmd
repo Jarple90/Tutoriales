@@ -1,0 +1,437 @@
+---
+title: Selección de variables para regresión lineal Datos Vino
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+
+En este documento se exploran los métodos clásicos de selección automática de variables. 
+
+# Preliminares
+
+En este documento se presentan varias alternativas para las selección automática de variables en modelos de regresión. Esta técnicas automáticas resulta útiles cuando nos enfrentamos a gran cantidad de variables y esto hace que el proceso manual sea difícil de abordar. En cualquier caso, hemos de saber que no son mágicas y que tienen sus debilidades, por lo que el control de las mismas por nuestra parte se hace fundamental de cara a la obtención de buenos resultados en su aplicación. 
+
+Antes de leer los datos vamos a intentar trabajar con el archivo de funciones que tenemos creado para no tener necesidad de definir cada función cuando queramos utilizarla. Para ello leemos el archiv.py y lo ejecutamos. Dos variante: import si el archivo está en la carpeta del documento o execfile si está en otro directorio. 
+
+```{python}
+# Si las funciones están en esta misma carpeta podemos hacer
+#from NuestrasFunciones import *
+
+# De lo contrario podemos hacer algo así como...
+#execfile('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\NuestrasFunciones.py')
+
+# O bien esto
+exec(open('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\NuestrasFunciones.py').read())
+```
+
+Procedemos a la lectura de los datos depurados y con las transformaciones creadas en el código de regresión lineal. 
+
+```{python}
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+
+# Leer datos depurados datosvinoDep
+todo_cont = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\PARTE I_Depuracion y Regresiones\\Dia2_Regresion Lineal\\todo_cont_cor.csv', index_col=0)
+
+# Descriptivo de comprobación
+todo_cont.info()
+```
+```{python}
+# Vamos a eliminar los aleatorios para aligerar
+todo_cont = todo_cont.loc[:,~todo_cont.columns.str.contains('aleat', case=False)]
+```
+
+## Preparación de los datos
+ 
+Como siempre, sacamos la variable objetivo para tenerla controlada y creamos el input. Como en esta ocasión vamos a trabajar más con el paradigma modelización mediante X,y, necesitaremos generar explítcitamente la matriz de diseño total con las categóricas extendidas en dummies y con constante. Vamos a hacerlo de forma manual. 
+ 
+
+```{python}
+varObjCont = todo_cont.Beneficio
+imput = todo_cont.drop(['Beneficio'],axis=1)
+
+# Craer matriz de diseño 
+imput_dummy = pd.get_dummies(imput, columns=['Clasificacion', 'Etiqueta', 'Region'], drop_first=False)
+# Borramos los niveles que queramos como referencia (se incluirá su efecto implicito en las constante)
+imput_dummy.drop(['Etiqueta_MM','Clasificacion_*','Region_1.0'], axis=1, inplace=True)
+# Añadir constante
+imput_dummy=sm.add_constant(imput_dummy)
+
+imput_dummy.head()
+```
+Hemos generado de otra forma la **matriz de diseño explícita** del problema de regresión. 
+
+## Modelo manual ganador
+
+Rescatamos el modelo ganador en nuestro proceso de ajuste manual de modelos de regresión lineal.
+
+```{python}
+# Importamos la api para fórmulas (en concreto ols para regresión)
+from statsmodels.formula.api import ols 
+
+# Ajusto regresión de ejemplo
+results = ols('Beneficio ~ Etiqueta + Clasificacion + CalifProductor + Acidez + Alcohol',data=todo_cont).fit()
+results.summary()
+```
+
+# Selección secuencial de variables 
+
+Vamos a probar ahora los métodos clásicos de selección de variables que, partiendo del modelo completo/nulo eliminarán/añadirán secuencialmente variables hasta un número indicado o bien hasta alcanzar el score mejor o de mayor parsimonia. 
+
+En primer lugar, presentamos la función **SequentialFeatureSelector** del paquete **mlxtend** que realiza la adición/eliminación secuencial de variables de forma automática basando los resultados en una cierta métrica (puede ser R2) por validación cruzada para cada subconjunto probado en el proceso iterativo. Con ello, se obtienen una serie de valores de ajuste por conjunto de variables probado y se escoge una configuración de entre las probadas. Entre las posibilidades para el argumento *k_features*, tenemos: 
+
+1. **'best'**: Escoge la configuración que maximiza la métrica escogida por CV. 
+2. **'parsimonious'**: Escoge la configuración más simple que se encuentra a menos de una sd del óptimo. 
+3. **n**: Escoge la mejor configuración de n variables 
+
+Mas información sobre el paquete en la página del proyecto.
+
+http://rasbt.github.io/mlxtend/user_guide/feature_selection/SequentialFeatureSelector/
+
+## Método backward-best
+
+Aplicamos filosofía backward con configuración best y valoramos el gráfico de evolución de las métricas a lo largo del proceso. 
+
+```{python}
+from sklearn.linear_model import LinearRegression
+from mlxtend.feature_selection import SequentialFeatureSelector as sfs
+
+clf = LinearRegression()
+
+# Definir el selector de variables
+sfs_back = sfs(clf,k_features = 'best',forward=False,floating=False, scoring='r2',cv=5)
+
+# Ajustar a los datos
+sfs_back = sfs_back.fit(imput_dummy, varObjCont)
+
+#print(sfs1.subsets_)
+
+# Ver nombres de variables seleccionadas
+print(sfs_back.k_feature_names_)
+
+# Score po cv
+sfs_back.k_score_
+```
+
+```{python}
+# Información completa del proceso
+pd.DataFrame.from_dict(sfs_back.get_metric_dict()).T
+```
+
+### Visualicación del proceso de selección de variables
+
+Una utilidad destacable es la obtención de un gráfico de evolución de los valores de ajuste por cv para todas las posibles configuraciones, que da una idea de la capacidad vs. complejidad de los modelos. De esta forma, podemos observar como a partir de una complejidad concreta en número de efectos, el modelo no tiene prácticamente ganancia en capacidad predictiva.
+
+```{python}
+from mlxtend.plotting import plot_sequential_feature_selection as plot_sfs
+import matplotlib.pyplot as plt
+
+fig1 = plot_sfs(sfs_back.get_metric_dict(), kind='std_dev')
+
+#plt.ylim([0.8, 1])
+plt.title('Sequential Forward Selection (w. StdDev)')
+plt.grid()
+plt.show()
+```
+
+
+## Método forward-parsimonious
+
+Probaremos un método forward con configuración más simple por parsimonia. 
+
+```{python}
+# Sequential Forward Selection
+sfs_forw = sfs(clf, 
+          k_features='parsimonious', 
+          forward=True, 
+          floating=False, 
+          scoring='r2',
+          cv=4)
+
+sfs_forw = sfs_forw.fit(imput_dummy, varObjCont)
+
+print('\nSequential Backward Selection:')
+print(sfs_forw.k_feature_names_)
+print('CV Score:')
+print(sfs_forw.k_score_)
+```
+
+```{python}
+# Proceso backward
+pd.DataFrame.from_dict(sfs_forw.get_metric_dict()).T
+```
+
+
+## Método backward-12 variables
+
+```{python}
+# Sequential Forward Selection
+sfs_12 = sfs(clf, 
+          k_features= 12, 
+          forward=False, 
+          floating=True, 
+          scoring='r2',
+          cv=4)
+
+sfs_12 = sfs_12.fit(imput_dummy, varObjCont)
+
+print('\nSequential Forward Selection (k=12):')
+print(sfs_12.k_feature_names_)
+print('CV Score:')
+print(sfs_12.k_score_)
+```
+
+## Método backward-10 variables
+
+```{python}
+# Sequential Forward Selection
+sfs_10 = sfs(clf, 
+          k_features= 10, 
+          forward=False, 
+          floating=True, 
+          scoring='r2',
+          cv=4)
+
+sfs_10 = sfs_10.fit(imput_dummy, varObjCont)
+
+print('\nSequential Forward Selection (k=10):')
+print(sfs_10.k_feature_names_)
+print('CV Score:')
+print(sfs_10.k_score_)
+```
+
+## Comparación por validación cruzada
+
+Comparamos el rendimiento de los modelos bajo el esquema de validación cruzada repetida creando una función similar a la que ya teníamos pero que, en esta ocasión trabaja sobre objetos de salida de los métodos de selección de variables de tal forma que en base a estos se seleccione el input adecuado y se ajuste el modelo lineal con las variables seleccionadas. 
+
+
+```{python}
+# Creamos lista de fórmulas   
+list_sfs = [sfs_back,sfs_forw,sfs_12,sfs_10]
+list_sfs
+
+# Aplicamos a toda la lista la función creada (devuelve un dataframe pero está transpuesto)
+list_res = pd.DataFrame(map(lambda x: cross_val_selectVar(x,imput_dummy,varObjCont, seed=2022),list_sfs))
+
+# Trasnponer dataframe y pasar de wide a long (creando un factor variable con el nombre de cada fórmula de la lista[0,1,2,3])
+results = list_res.T.melt()
+results.columns = ['Modelo','R2']
+results.head()
+```
+
+```{python}
+# Boxplot paralelo para comparar
+sns.boxplot(x='Modelo',y='R2',data=results,palette='viridis')
+```
+
+## Creación de interacciones
+
+Vamos ahora a considerar los efectos de interacción de orden 2 entre las variables para valorar si pueden aportar capacidad predictiva al modelo. 
+
+Generaremos el dataset con las interacciones de todas las variables y posteriormente pasaremos los métodos de selección para hacer una criba de efectos interesantes. 
+
+```{python}
+sel_col = ['const', 'Acidez', 'CalifProductor', 
+        'Acidez_sqr', 'Alcohol_sqrt', 'Clasificacion_**', 'Clasificacion_***', 'Clasificacion_****', 
+        'Clasificacion_Desc', 'Etiqueta_B', 'Etiqueta_M', 'Etiqueta_MB', 
+        'Etiqueta_R', 'Region_2.0']
+
+imput_dummy_red = imput_dummy[sel_col].drop(['const'], axis=1)
+```
+
+Para obtener interacciones de manera automática, sklearn proporciona la función **PolynomialFeatures**, que genera polinomios del grado indicado teniendo en cuenta las combinaciones de variables. Los efectos cuadráticos no nos interesan en ppio puesto que ya tenemos nuestas mejores transformaciones y nos quedaremos solamente con los efectos combinados de pares de variables. 
+
+
+```{python}
+from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures
+
+# Create interaction terms (interaction of each regressor pair + polynomial)
+#Interaction terms need to be created in both the test and train datasets
+interaction = PolynomialFeatures(degree=2, include_bias=False, interaction_only=True)
+interaction
+
+# Aplicar al dataset
+X_inter = pd.DataFrame(interaction.fit_transform(imput_dummy_red), columns=interaction.get_feature_names_out(input_features=imput_dummy_red.columns))
+X_inter.head(3)
+```
+Algunas de esta interacciones se dan entre dummies para la misma variable, con lo cual no tienen sentido y el resultado será todo 0.. por ello, para aligerar proceso, eliminamos las columnas con varianza 0 del dataset. 
+
+```{python}
+# Eliminar columnas constantes (interacciones sin sentido)
+X_inter = X_inter.loc[:, X_inter.var() != 0.0]
+
+X_inter.head(3)
+```
+Ahora ya tenemos el dataset con variables originales + transformaciones + interacciones interesantes de orden 2. 
+
+## Selección secuencial con interacciones
+
+Una vez tenemos el dataset con todas las interacciones relevantes, podemos aplicar sobre este la selección secuencial para valorar si hay efectos de interacción poderosos para el modelo. 
+
+### Mejor configuración
+
+```{python}
+# Sequential Forward Selection
+sfs_forw_int_best = sfs(clf, 
+          k_features='best', 
+          forward=True, 
+          floating=False, 
+          scoring='r2',
+          cv=4)
+
+sfs_forw_int_best = sfs_forw_int_best.fit(X_inter, varObjCont)
+
+print('\nSequential Forward + Best Selection:')
+print(sfs_forw_int_best.k_feature_names_)
+print('CV Score:')
+print(sfs_forw_int_best.k_score_)
+```
+
+Veamos el gráfico de proceso.
+
+```{python}
+
+fig1 = plot_sfs(sfs_forw_int_best.get_metric_dict(), kind='std_dev')
+
+#plt.ylim([0.8, 1])
+plt.title('Sequential Forward + Best Selection (interacciones) (w. StdDev)')
+plt.grid()
+plt.show()
+```
+
+
+### Configuración con 10 variables
+
+```{python}
+# Sequential Forward Selection
+sfs_forw_int_10 = sfs(clf, 
+          k_features=10, 
+          forward=True, 
+          floating=False, 
+          scoring='r2',
+          cv=4)
+
+sfs_forw_int_10 = sfs_forw_int_10.fit(X_inter, varObjCont)
+
+print('\nSequential Forward 10 variables Selection:')
+print(sfs_forw_int_10.k_feature_names_)
+print('CV Score:')
+print(sfs_forw_int_10.k_score_)
+```
+
+
+# Selección de variables por LASSO
+
+Exploramos la selección de variables por modelo laso con criterios AIC o BIC.
+
+## Solo efectos principales
+
+Aplicación de Lasso al dataset con variables originales + transformaciones. 
+
+```{python}
+from sklearn import linear_model
+
+reg = linear_model.LassoLarsIC(criterion='bic', normalize=False)
+
+reg.fit(imput_dummy, varObjCont)
+
+print(reg.coef_)
+```
+Para hacer la selección por Lasso y obtener la matriz de efecto seleccionados solamente, sencillamente eliminamos todos los coeficientes con parámetro estimado nulo haciendo una selección por columnas. 
+
+```{python}
+selec_feats = imput_dummy[imput_dummy.columns[(reg.coef_ != 0).ravel().tolist()]]
+selec_feats.columns
+```
+
+## Lasso con interacciones
+
+Ahora aplicamos Lasso al archivo que contiene también las interacciones entre las variables de interés. 
+
+```{python}
+lasso_int = linear_model.LassoLarsIC(criterion='bic', normalize=False)
+
+lasso_int.fit(X_inter, varObjCont)
+
+print(lasso_int.coef_)
+```
+
+Obtenemos la sub selección de la misma forma.
+
+```{python}
+selec_feats_int = X_inter[X_inter.columns[(lasso_int.coef_ != 0).ravel().tolist()]]
+selec_feats_int.columns
+```
+
+
+
+## Validación Cruzada para interacciones
+
+Vamos a aplicar la validación cruzada repetida para los modelos de selección atuomática sfs y Lasso para obtener los valores de sesgo-varianza de las estimaciones. Como siempre, creamos lista de modelos y aplicamos con map la función **cross_val_selectVar** a toda la lista, obteniendo un dataframe con Modelo y Valores de R2 en cv (100 valores por modelo). Luego agrupación y cuentas y boxplot.
+
+```{python}
+list_sfs = [sfs_forw_int_best,sfs_forw_int_10,selec_feats,selec_feats_int]
+list_sfs
+
+
+# Aplicamos a toda la lista la función creada (devuelve un dataframe pero está transpuesto)
+list_res = pd.DataFrame(map(lambda x: cross_val_selectVar(x,X_inter,varObjCont, seed=2022),list_sfs))
+
+# Trasnponer dataframe y pasar de wide a long (creando un factor variable con el nombre de cada fórmula de la lista[0,1,2,3])
+results_inter = list_res.T.melt()
+results_inter.columns = ['Modelo','R2']
+results_inter.head()
+```
+
+```{python}
+# Medias por Modelo (sesgo)
+results_inter.groupby(['Modelo']).mean()
+
+# Desviaciones por modelo (varianza)
+results_inter.groupby(['Modelo']).std()
+
+# Boxplot paralelo para comparar
+sns.boxplot(x='Modelo',y='R2',data=results_inter,palette='viridis')
+```
+
+# Comparativa final 
+
+Resumimos la comparativa de capacidad predictiva de: 
+
+- Modelos sfs para variables originales + transformaciones
+- Modelos sfs y Lasso para variables originales + transformaciones + interacciones
+
+```{python}
+# Medias por Modelo (sesgo)
+results.groupby(['Modelo']).mean()
+results_inter.groupby(['Modelo']).mean()
+
+```
+Poca diferencia entre ellos. Con este panorama elegiríamos el modelo más simple. 
+
+Recordemos el comportamiento por cv para el modelo manual. 
+
+```{python}
+modeloManual = cross_val_lin('Beneficio ~ Etiqueta + Clasificacion + CalifProductor + Acidez + Alcohol', data=todo_cont, seed=2022)
+```
+
+En este caso, para el archivo de vinos, las transformaciones e interacciones no aportan gran ganacia respecto a la consideración de modelo manual, por lo que no parece que merezca la pena introducir estos efectos que hacen el modelo más complejo para su interpretación. Conclusión, nuestro mejor modelo parece ser el manual en cuanto a parsimonia. 
+
+En otras ocasiones, es muy posible que extendiendo nuestro set de variables con la consideración de interacciones y transformadas de variables aumente la capacidad predictiva de nuestros modelos. Ahí quedan un par de alternativas para la selección de variables de cara a la modelización predictiva. 
+
+Cabe destacar que sklearn implementa otros métodos de selección de variables basados en modelos más modernos como Random Forest o Gradient Boosting. Consultar https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SequentialFeatureSelector.html para más información. 
+
+

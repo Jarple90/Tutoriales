@@ -1,0 +1,777 @@
+---
+title: "Regresión logística Datos Vino"
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+## Preliminares
+
+En este documento ajustaremos algunos modelos de regresión logística a los datos sobre venta de vinos. Para ello, utilizamos el conjunto de datos que generamos tras la depuración, asegurando un conjunto de datos "limpios" y exentos de ciertos peligros. 
+
+Antes de leer los datos vamos a intentar trabajar con el archivo de funciones que tenemos creado para no tener necesidad de definir cada función cuando queramos utilizarla. Para ello leemos el archiv.py y lo ejecutamos. Dos variante: import si el archivo está en la carpeta del documento o execfile si está en otro directorio. 
+
+```{python}
+# Si las funciones están en esta misma carpeta podemos hacer
+#from NuestrasFunciones import *
+
+# De lo contrario podemos hacer algo así como...
+#execfile('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\NuestrasFunciones.py')
+
+# O bien esto
+exec(open('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\NuestrasFunciones.py').read())
+```
+
+
+```{python}
+import pandas as pd
+import numpy as np
+
+
+# Leer datos depurados datosvinoDep
+vinosDep = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\PARTE I_Depuracion y Regresiones\\Dia1_MDDepuracion\\DatosVinoDep_winsRand.csv', index_col=0)
+
+# Descriptivo de comprobación
+vinosDep.head()
+```
+
+
+```{python}
+
+vinosDep.info()
+
+```
+
+Procedemos a la lectura de los datos depurados. Ya que vamos a hacer cosas como evaluación de las relaciones entre los predictores y la respuesta o creación masiva de transformaciones para< conseguir linealidad, lo mejor es separar las respuestas y quedarnos con el input depurado, de esta forma podemos aplicar una misma función a todo el conjunto sin peligro de transformar las respuestas y cosas raras que puedan suceder. 
+
+```{python }
+# Lista de columnas con menos de 10 valores distintos. Potenciales factores!
+to_factor = list(vinosDep.loc[:,vinosDep.nunique() < 10]);  
+
+# Podemos cambiar el tipo de todas ellas a factor de una vez
+vinosDep[to_factor] = vinosDep[to_factor].astype('category')
+
+# Ordenmaos categorías de los fatcores de interés
+vinosDep["Etiqueta"] = vinosDep["Etiqueta"].cat.reorder_categories(['MM','M','R','B','MB'])
+vinosDep["Clasificacion"] = vinosDep["Clasificacion"].cat.reorder_categories(['Desc','*','**','***','****'])
+```
+
+**Variables de control**
+
+No es mala idea generar un par de variables de "control" para la evaluación de los efectos de los predictores frente a la respuesta. La idea es la siguiente: si generamos variables en el más estricto sentido aleatorio (por ejemplo siguiendo una distribución uniforme[0,1]) cualquier relación que estas presenten con la variable respuesta serán debidas puramente al azar, con lo que se pueden considerar relaciones espurias, es decir, falsas. 
+
+Por tanto, ya sea en la inspección preliminar de relaciones con la respuesta mediante correlación (relación lineal, válido para continua-continua) o VCramer (asociación en tablas de contingencia, válido para cruce de variables categóricas/nominales o continuas tramificadas) o bien en los propios modelos de regresión, las variables que presenten una menor relación con la respuesta que las variables de control, tendrán una sombra de sospecha sobre la veracidad de esa relación y probablemente serán descartadas, al menos en su estado original (siempre se pueden tratar de transformar, tramificar etc)
+
+```{python}
+vinosDep['aleatorio'] = np.random.uniform(0,1,size=vinosDep.shape[0])
+vinosDep['aleatorio2'] = np.random.uniform(0,1,size=vinosDep.shape[0])
+vinosDep.head()
+```
+
+
+```{python}
+# Eliminar variable objetivo continua 
+varObjBin = vinosDep.Compra
+imputDep = vinosDep.drop(['ID','Beneficio','Compra'],axis=1)
+```
+
+
+## Estudio descriptivo de relaciones con la respuesta
+
+En este apartado intentaremos descubrir a priori las relaciones marginales de las variables con la variable objetivo binaria para hacernos una idea de cuales de ellas serán potencialmente influyentes en los modelos de regresión logística que ajustemos. 
+
+```{python}
+
+# Aplicar la función al input completo contra la objetivo
+tablaCramer = pd.DataFrame(imputDep.apply(lambda x: cramers_v(x,varObjBin)),columns=['VCramer'])
+
+# Obtener el gráfico de importancia de las variables frente a la objetivo continua según vcramer
+import plotly.express as px
+px.bar(tablaCramer,x=tablaCramer.VCramer,title='Relaciones frente a Compra').update_yaxes(categoryorder="total ascending").show()
+```
+
+En este caso tenemos que las variables tentativas para el modelado son: 
+
+- Clasificación 
+- Calificación del productor 
+- pH
+- CloruroSodico
+- Sulfatos
+- Acidez
+
+A partir de aquí ya tenemos prop_missings y empezamos a sospechar que más allá de esta las relaciones pueden ser por pura casualidad...pero habrá que asegurar en modelo. 
+
+Vamos ahora a utilizar las funciones gráficas para pintar las relaciones de las variables con la objetivo binaria. En primer lugar podemos utilizar la función mosaico que es resultona para las relaciones entre categóricas y las de boxplot e histograma para valorar las relaciones de los predictores continuos con la objetivo binaria.
+
+```{python}
+import matplotlib.pyplot as plt
+import seaborn as sns
+from statsmodels.graphics.mosaicplot import mosaic
+
+plt.clf()
+#mosaic(pd.crosstab(vinosDep.Clasificacion, varObjBin))
+mosaic(vinosDep,['Clasificacion','Compra'],gap=0.005, title='Clasificacion vs. Compra')
+#sns.heatmap(pd.crosstab(vinosDep.Etiqueta, varObjBin))
+plt.show()
+
+plt.clf()
+#mosaic(pd.crosstab(vinosDep.Clasificacion, varObjBin))
+mosaic(vinosDep,['Etiqueta','Compra'],gap=0.005, title='Etiqueta vs. Compra')
+#sns.heatmap(pd.crosstab(vinosDep.Etiqueta, varObjBin))
+plt.show()
+
+plt.clf()
+#mosaic(pd.crosstab(vinosDep.Clasificacion, varObjBin))
+mosaic(vinosDep,['Region','Compra'],gap=0.005, title='Region vs. Compra')
+#sns.heatmap(pd.crosstab(vinosDep.Etiqueta, varObjBin))
+plt.show()
+```
+
+
+Como ya intuíamos por el gráfico de V de Cramer, la pobre variable región no discrimina nada frente a la compra del vino (nuestra objetivo binaria) ya que las distribuciones de 0 y 1 en las distintas regiones son muy similares digamos 20/80%?? 
+
+En cambio, la variable clasificación tiene mucho que aportar ya que vemos que las distribuciones de 0 y 1 en los distintos niveles de clasificación son muy distintos. Así, empezamos a intuir que los vinos con clasificación desconocida parecen ser vinos malillos en general al menos en el sentido de que no se compran. Parece que existe una relación relativamente creciente de proporción de compra con el aumento de las estrellas de clasificación. En este punto podemos ir pensando ya que las clasificaciones *** y **** tienen diferencias mínimas frente a la respuesta, por lo que son susceptibles de unión si se quiere reducir el número de parámetros del modelo (todo esto mejor valorarlo en conjunción con el estimador del modelo para ambas categorías, me explico, si los estimadores son similares Ok si la diferencia es importante...entonces tal vez merece la pena mantener esa diferenciación)
+
+
+```{python}
+plt.clf()
+sns.boxplot(x='Alcohol',y='Compra',data=vinosDep,palette='viridis')
+plt.show()
+```
+
+
+```{python}
+plt.clf()
+sns.boxplot(x='CalifProductor',y='Compra',data=vinosDep,palette='viridis')
+plt.show()
+```
+
+
+```{python}
+plt.clf()
+#sns.kdeplot(vinosDep,x="CalifProductor", hue="Compra", fill=True, common_norm=False, alpha=0.4)
+sns.displot(vinosDep, x="CalifProductor", hue="Compra",kind="kde",fill=True, common_norm=False, alpha=0.4)
+#sns.histplot(y='CalifProductor',color='Compra',data=vinosDep,palette='viridis')
+plt.show()
+```
+
+
+```{python}
+plt.clf()
+#sns.kdeplot(vinosDep,x="Acidez", hue="Compra", fill=True, common_norm=False, alpha=0.4)
+sns.displot(vinosDep, x="Acidez", hue="Compra", kind="kde",fill=True, common_norm=False, alpha=0.4)
+#sns.histplot(y='CalifProductor',color='Compra',data=vinosDep,palette='viridis')
+plt.show()
+```
+
+
+```{python}
+plt.clf()
+#sns.kdeplot(vinosDep,x="Densidad", hue="Compra", fill=True, common_norm=False, alpha=0.4)
+sns.displot(vinosDep, x="Densidad", hue="Compra",kind="kde",fill=True, common_norm=False, alpha=0.4)
+#sns.histplot(y='CalifProductor',color='Compra',data=vinosDep,palette='viridis')
+plt.show()
+```
+
+
+Por ver que V de cramer no miente, probamos con densidad y el resultado es que el solapamiento de las distribuciones de 0 y 1 es casi completa. En el caso de Acidez, existe una ligera diferencia en distribuciones que quizá se traduzca en un mínimo efecto en el modelo (se verá..)
+
+Las variables calificación del productor continua parece tener influencia en la respuesta binaria en el sentido de que los vinos que se compran (compra=1) tienen una distribución de calificación de productor menos elevada...algo que puede resultar poco intuitivo pero, ya se sabe, el productor y sus calificaciones con posible sesgo...jeje
+
+
+## Tranformaciones de variables
+
+Vamos a generar las transformaciones de las variable continuas que maximizan la relación con la variable objetivo binaria en sentido de V de Cramer. 
+
+**Nota:** La principal precaución que hay que tener si utilizamos el arvhivo tod_bin es no considerar un modelo completo con todas al mismo tiempo puesto que se pueden generar los problemas de colinealidad. Solamente utilizaremos el set completo de variables cuando hagamos un proceso de selección automática de variables, proceso en el cual se elegirán las que más R2 aporten al modelo. 
+
+```{python}
+
+# Aplicar a las variables continuas la mejor transfromación según cramer frente a varObjBin
+transf_cramer = imputDep.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjBin, tipo='cramer'))
+transf_cramer_names = imputDep.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjBin,tipo='cramer', name=True))
+transf_cramer.columns = transf_cramer_names.values
+transf_cramer
+```
+
+Aquí podemos fijarnos en los cambios en VCramer al transformar las variables. Destaca el caso de la variable Azucar. En su estado natural es muy mala, en cambio con la transformación raiz4 pasa directamente al top 5 de efectos!! Esto es justamente lo que se busca con estas transformaciones. 
+
+```{python}
+
+# Generar input con tranformaciones
+imput_transf = imputDep.join(transf_cramer)
+
+# Aplicar la función al input completo contra la objetivo
+tablaCramer = pd.DataFrame(imput_transf.apply(lambda x: cramers_v(x,varObjBin)),columns=['VCramer'])
+
+# Obtener el gráfico de importancia de las variables frente a la objetivo continua según vcramer
+import plotly.express as px
+px.bar(tablaCramer,x=tablaCramer.VCramer,title='Relaciones frente a Compra').update_yaxes(categoryorder="total ascending").show()
+```
+
+
+```{python}
+# Guardar archivo con transformaciones para la variable objetivo binaria
+# Agregar variables objetivo al input ya limpio
+todo_bin = pd.concat([imput_transf,varObjBin], axis=1)
+
+# Guardar archivo
+todo_bin.to_csv('todo_bin_Vino.csv')
+```
+
+
+# Modelos de regresión logística para la predicción de la variable compra
+
+En esta sección se ajustan distintos modelos de regresión logística para predecir la compra de los vinos. En primer lugar, tomamos la partición training (donde ajustamos el modelo) y test (donde probamos su capacidad).
+
+Antes de nada vamos a aclararnos con el archivo a utilizar que será el todo_bin que hemos generado, aunque en esta primera parte (por no hacerlo muy largo y pesado) nos centraremos en variables originales sin transformaciones. Es importante tener claro que queremos filtrar y como hacerlo.
+
+Por otra parte, siempre es conveniente echar un vistazo a la distribución de la variable objetivo, cuantos 0 y 1 hay en el archivo?? Esto es muy relevante a la hora de valorar cuestiones importantes en el contexto de clasificación supervisada. En particular, prestamos atención a la baja representación del evento ya que esto supone un handicap para cualquier algoritmo de clasificación (incluida la regresión logística) y ha dado lugar a toda una rama de investigación sobre *imbalanced classification* que se agudiza en el contexto del Big Data y la paralelización de procesos con los llamados *small disjunts* que seproducen cuando en la paralelización se tienen particiones poco representativas de los datos (y del evento en particular) en los distintos nodos del cluster computacional utilizado. Todo esto para alimentar la curiosidad y dar un contexto sobre la importancia de todo esto. 
+
+Es muy importante saber también como funcionan las métricas de evaluación en el contexto de la clasificación supervisada. Es muy extendido el uso del famoso Accuracy, lo que vendría a ser el complementario a 1 de la tasa de fallos de la matriz de confusión de las predicciones frente a la distribución original. Hablando en plata, cuanto te has equivocado Don modelo sumando 0 y 1?? 
+
+Por supuesto, es una métrica muy válida e informativa pero tiene sus riesgos cuando nos salimos del contexto para el que fueron concebidas (distribución balanceada de clases del evento  aprox. 50% de cada una de las categorías). Imaginemos la siguiente situación, variable objetivo binaria con el 5% de las instancias pertenecientes al evento y el 95% al no evento (mortalidad en accidentes, enfermedades raras, impagos bancarios etc..). Ajustamos modelo, podría ser R. Logística o una potente red neuronal...Resultado, Accuracy del 95% has acertado en el 95% de los casos!! Apago el ordenador y me voy feliz a casa con el informe enviado a la jefa. Probablemente no vuelvo a currar más allí... 
+
+Problema: El algoritmo lo que quiere es minimizar la tasa de fallos (si es que se consigna esa métrica para su ajuste) por lo que lo más fácil con toda probabilidad es decir que todos son *no evento* asegurando un muy buen accuracy aparente. En cuanto indagamos un poco y le preguntamos por la *sensibilidad* del modelo nos respondería 0. Es decir la capacidad de reconocer a los eventos (los 1) es nula ya que no ha identificado ninguno...el accuracy sigue siendo del 95%. 
+
+Toda esta película motiva el siguiente check de la distribución a priori de la variable y la consiguiente decisión de la métrica a utilizar para la evaluación del modelo de clasificación. Como se verá el área bajo la curva ROC o el kappa suelen ser métricas más adecuadas cuando no se presenta balanceo de clases. 
+
+```{python}
+
+# Trabajamos con el archivo con variable originales
+vinosDep.info()
+
+```
+
+```{python}
+# Tabla de frecuencias relativas de las categorías de Compra
+vinosDep.Compra.value_counts(normalize=True)
+```
+
+En este caso, tenemos la situación de desbalanceo hacia los 1 ya que la frecuencia a priori de 1 es del 78%. El modelo tendrá mayor dificultad en reconocer a los 0. Visto esto, si tenemos un accuracy de 0.78...podemos sospechar y miraremos bien *sensibilidad* y *especificidad* para tranquilizar nuestras conciencias. 
+
+
+## Partición training-test
+
+Vamos a generar la partición del archivo en el que incluiremos solamente las variables originales. Por ello, pedimos que nos muestre las posiciones de las variables para saber como filtrar las columnas deseadas. 
+
+Tenemos que seleccionar variables originales (1:18) y la respuesta (33). 
+
+```{python}
+# Función necesaria
+from sklearn.model_selection import train_test_split
+
+# Creamos 4 objetos: predictores para tr y tst y variable objetivo para tr y tst. 
+X_train, X_test, y_train, y_test = train_test_split(imputDep, varObjBin, test_size=0.2, random_state=1234)
+
+# Comprobamos dimensiones
+print('Training dataset shape:', X_train.shape, y_train.shape)
+print('Testing dataset shape:', X_test.shape, y_test.shape)
+```
+¿ Mantendrá la proporción de clases de la variable objetivo esta partición?
+
+```{python}
+
+# Training 
+y_train.value_counts(normalize=True)
+
+# Test
+y_test.value_counts(normalize=True)
+```
+
+
+## Modelo completo de referencia
+
+Comenzamos con nuestro modelo completo de referencia que incluye todas las variables con la precaución de no considerar ID puesto que no tiene sentido ni variables "dobladas" en el caso de que las hubiera.
+
+En nuestro caso, no tenemos nada raro así que eliminaremos ID y tiraremos el modelo completo para valorar.
+
+Una precaución en este punto. El método logit de *statmodels.formula.api* no acepta categórica como objetivo, por lo que transformaremos en entera.
+
+```{python}
+# Genero el training con la objetivo dentro 
+data_train = X_train.join(y_train.astype('int64'))
+
+```
+
+De nuevo, vamos a trabajar con la interfaz fórmula que resulta cómodo. Como siempre nos generamos esa función para que concatene todos los efectos del dataset en una sola fómula para evitarnos escribir mucho. 
+
+```{python}
+
+# Aplicamos a fórmula de modelo completo
+formC=ols_formula(data_train,'Compra')
+formC
+```
+Ya tenemos la fórmula del modelo completo. 
+
+```{python}
+# Importamos la api para fórmulas (en concreto ols para regresión)
+from statsmodels.formula.api import logit 
+
+# Ajusto regresión de ejemplo
+modeloCompleto = logit(formC,data=data_train).fit()
+modeloCompleto.summary()
+```
+Salta a la vista que hay muchos efectos no significativos (no tienen estrellas) y a primera vista mosquean los errores gigantes clasificación *** y ****. Atención porque el parámetro estimado de 20 o 22 resulta el mayor de todos... Vale, a que se debe esto?? Con toda probabilidad a la falta de instancias de estas categorías con compra = 0. Recordemos que la incidencia era ya baja y hemos tomado una partición de los datos..lo que empeora la situación. 
+
+Vamos a echar un ojo a la distribución de la tabla cruzada de Clasificación y la objetivo en data_train. 
+
+```{python}
+
+pd.crosstab(data_train.Compra, data_train.Clasificacion)
+```
+
+Vaya...ni una sola instancia con compra=0 y clasificación de *** o ****. Esto genera ese alto error. El gran problema de esto será la interpretabilidad del modelo. Hay que pensar que el OR (cuanto más probable es que se de el evento que el no evento dada una premisa) es la exponencial del parámetro..si este parámetro es 20, estamos ante un OR de 485165195, cosa que resulta difícil de interpretar. Por este motivo y dado que uno de los puntos fuertes de las regresiones es la interpretación, decidimos unir categorías. 
+
+```{python}
+
+# Unimos la categorías problemáticas de Clasificacion
+imputDep.Clasificacion.replace(['**','***','****'],'**+',inplace=True)
+
+
+# Actualizar la partición
+X_train, X_test, y_train, y_test = train_test_split(imputDep, varObjBin, test_size=0.2, random_state=1234)
+
+# Genero el training con la objetivo dentro 
+data_train = X_train.join(y_train.astype('int64'))
+data_test = X_test.join(y_test.astype('int64'))
+
+# Volver a ajustar el modelo inicial
+modeloCompleto = logit(formC,data=data_train).fit()
+modeloCompleto.summary()
+
+
+# Volver a ajustar el modelo inicial en test para valorar pseudo R2
+# modeloCompleto = logit(formC,data=data_test).fit()
+# modeloCompleto.summary()
+```
+
+Nos hemos librado de los peligros de OR gigantes!!
+
+Consultamos los valores de pseudoR2 en los conjuntos de training y test, que se sitúan en torno a 0.41 lo cual indica un muy buen ajuste. Recordemos que puede equivaler a R2 lineales de más de 0.8!!
+
+## Importancia de las variables
+
+Siguiendo los mismo pasos que en Regresión Lineal, podemos consultar la importancia de vairiables en el modelo utilizando la función relativeImp. La precaución, como entonces, es que necesitamos las matrices de diseño explícitas con las categorícas extendidas a dummies, y para esto utilizamos pasty.
+
+```{python}
+import statsmodels.api as sm
+import patsy
+
+# Generamos las matrices de diseño según la fórmula de modelo completo
+y_tr, X_tr = patsy.dmatrices(formC, data_train, return_type='dataframe')
+
+# Generamos las matrices de diseño según la fórmula de modelo completo para test
+y_tst, X_tst = patsy.dmatrices(formC, data_test, return_type='dataframe')
+
+
+# Ahora podemos aplicar la función "oficial" de statmodels Logit (con formato y,X)
+# model=sm.Logit(y,X).fit()
+# model.summary()
+```
+
+Calculamos la importancia relativa de los efectos del modelo.
+
+```{python}
+
+from relativeImp import relativeImp
+
+# Nombres de predictores (en modo dummy) donde quitamos la constante
+names=X_tr.columns.tolist()[1:]
+
+# Calculamos importancia relativa
+df_results = relativeImp(X_tr.join(y_tr), outcomeName = 'Compra', driverNames = names)
+
+# Ordenamos valores 
+df_results.sort_values(by='normRelaImpt', ascending=False)
+```
+
+## Métricas de ajuste en training-test
+
+Recurrimos a sklearn para obtener todo tipo de métricas de evaluación para el modelo logístico. 
+
+```{python}
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+
+# Definición de modelo
+modelo = LogisticRegression(solver='lbfgs', max_iter=1000, penalty='none')
+
+# Arreglar y para que le guste a sklearn...numeric
+y_tr_ = y_tr.Compra.ravel()
+
+# Ajuste de modelo
+modelLog = modelo.fit(X_tr,y_tr_)
+
+# Accuracy del modelo en training
+acc = modelLog.score(X_tr,y_tr_)
+
+# Predicciones en test
+y_pred = modelLog.predict(X_tst)
+
+# Matriz de confusion de clasificación 
+print(metrics.confusion_matrix(y_tst,y_pred))
+
+# Reporte de clasificación 
+print(metrics.classification_report(y_tst,y_pred))
+
+# Extraemos el Area bajo la curva ROC
+metrics.roc_auc_score(y_tr, modelLog.predict_proba(X_tr)[:, 1])
+```
+
+
+Una posibilidad para la curva ROC
+
+```{python}
+from sklearn.metrics import roc_curve, auc, roc_auc_score
+from bioinfokit.visuz import stat
+
+fpr, tpr, thresholds = roc_curve(y_tr, modelLog.predict_proba(X_tr)[:, 1])
+auc = roc_auc_score(y_tr, modelLog.predict_proba(X_tr)[:, 1])
+
+# plot ROC
+plt.clf()
+stat.roc(fpr=fpr, tpr=tpr, auc=auc, shade_auc=True, per_class=True, legendpos='upper center', legendanchor=(0.5, 1.08), legendcols=3)
+plt.show()
+```
+
+
+## Proceso manual hacia delante
+
+Vamos a considerar un modelo con las 3 primeras variables ya que presentan una importancia bastante más elevada que el resto.
+
+```{python}
+
+form1 = 'Compra ~ Clasificacion + CalifProductor + pH'
+
+# Ajustar modelo 1
+modelo1 = logit(form1,data=data_train).fit()
+modelo1.summary()
+
+```
+
+Este modelo es sencillo y bastante significativo en cuanto a sus parámetros (muy estrellado). Por otro lado el pseudoR2 en training baja un poquito pero aumenta en test, lo que puede indicar mayor capacidad de generalización a datos desconocidos. Tiene buena pinta, habrá que probarlo en validación cruzada ya que en el esquema training/test aún estamos expuestos a la aleatoriedad de la selección de la partición.
+
+No es mala idea probar alguna interacción de alguna de estas variables ya que tienen un caracter inherente muy similar de valoración de la calidad en algún sentido. Es lógico pensar que puedan presentar un comportamiento conjunto. Cuando incluimos interacción permitimos la evolución conjunta de las variables en el modelo, ya que de lo contrario siempre tenemos efectos independientes e interpretación ceteris paribus (a todo lo demás constante).
+
+Probaremos entonces la interacción de clasificación y etiqueta.
+
+```{python}
+form2 = 'Compra ~ Clasificacion*Etiqueta + CalifProductor + pH'
+
+# Ajustar modelo 1
+modelo2 = logit(form2,data=data_train).fit()
+modelo2.summary()
+```
+
+Modelo que no tiene mala pinta puesto que varias de las interacciones resultan significativas, algunas bastante con 2 y 3 estrellas. Normalmente no ha de asustar que algunas de ellas no sean significativas y se mantienen sin problema en el modelo. Parece producirse un efecto potenciador de la variable clasificación ya que sus coeficientes de efectos principales aumentan. En este momento el efecto de la categoría clasificación 2+ estrellas ya no solamente se valora con un único coeficiente sino con todos los implicados en la interacción con etiqueta que resulten significativos. De esta forma se hace dependiente la influencia de la clasificación a los valores que tome etiqueta. Ejemplos:
+
+- Vinos con Clasificación 2+ estrellas 
+    * Si etiqueta es B (nivel de referencia de Etiqueta), su coeficiente es 3.69 con lo que la probabilidad de compra de este tipo de vinos es exp(3.69) veces superior a aquellos vinos con clasificación 1 estrella y etiqueta B.
+    * Si etiqueta es M, su coeficiente será 3.69+0.77-2.29, es decir, betaClas2estr + betaEtiM + betaClas2estr:EtiM. Con lo que el efecto será exp(3.69+0.77-2.29)=exp(2.17), menor que el anterior. ASí la probabilidad de compra de un vino con clasificación 2 estrellas y etiqueta mala es exp(2.17) mayor que la de un vino con clasificación 1 estrella y etiqueta B (niveles de referencia de ambas variables)
+    
+Esta es la idea de las interacciones. Como se intuye la interpretación se complica bastante pero se pueden captar patrones de realidades interesantes sin la constricción del ceteris paribus. 
+
+Vamos a probar a eliminar esta interacción y poner en su lugar un par de variables continuas para obtener un modelo más sencillo y evaluar posteriormente si el aumenta en complejidad de las interacciones merece el esfuerzo.
+
+```{python}
+form3 = 'Compra ~  Clasificacion + CalifProductor + pH + Etiqueta'
+
+# Ajustar modelo 1
+modelo3 = logit(form3,data=data_train).fit()
+modelo3.summary()
+```
+
+El modelo tiene la mitad de parámetros que el anterior y su capacidad en el esquema training/test es muy parecida. De hecho se observa un ligero aumento en pseudoR2 de test.
+
+Vamos a introducir otro par de variables continuas de las que pueden influir para valorar el aporte a la capacidad predictiva del modelo y la significación estadística de estos posibles efectos.
+
+```{python}
+form4 = 'Compra ~  Clasificacion + CalifProductor + pH + Etiqueta + CloruroSodico'
+
+# Ajustar modelo 1
+modelo4 = logit(form4,data=data_train).fit()
+modelo4.summary()
+```
+
+A la luz del summary del modelo, ambas variables presentan algo de significación estadística en el contraste de los parámetros (lo que viene a decir que estos parámetros son distintos de 0 a un nivel de confianza del 5% con 1 estrella o al 10% con un punto). Sin embargo, no queda muy claro que aporten mucha capacidad predictiva al modelo puesto que los pseudoR2 son muy similares a los arrojados por el modelo anterior, incluso disminuye en el conjunto de test. 
+
+Por último vamos a probar a introducir la interacción en el último modelo. Modelo más complejo para comparar por CV.
+
+```{python}
+form5 = 'Compra ~  Clasificacion + CalifProductor + pH + Etiqueta + CloruroSodico + Acidez'
+
+# Ajustar modelo 1
+modelo5 = logit(form5,data=data_train).fit()
+modelo5.summary()
+```
+```{python}
+form6 = 'Compra ~  Clasificacion*Etiqueta + CalifProductor + pH + CloruroSodico + Acidez'
+
+# Ajustar modelo 6
+modelo6 = logit(form6,data=data_train).fit()
+modelo6.summary()
+```
+```{python}
+form7 = 'Compra ~ Acidez + AcidoCitrico + Azucar + CloruroSodico + Densidad + pH + Sulfatos + Alcohol + CalifProductor + PrecioBotella + Etiqueta + Clasificacion + Region'
+
+# Ajustar modelo 7
+modelo7 = logit(form7,data=data_train).fit()
+modelo7.summary()
+```
+
+De esta forma podríamos seguir jugando con los efectos y añadir interacciones u otras variables no consideradas en busca de patrones conjuntos interesantes. 
+
+
+# Evaluación de los modelos por validación cruzada repetida
+
+Pasamos a la evaluación de la capacidad de los modelos el formato comparativo y bajo el paradigma de validación cruzada repetida. ASí, partiremos el data todo en 5 partes y formaremos 5 training con las 5 combinaciones de 4/5 con sus correspondientes 5 test de 1/5, repitiendo esto 20 veces con distintas semillas de inicialización de las particiones. De esta forma, el modelo (misma fórmula) se enfrentará a distintos tr/tst considerando en su entrenamiento todos los datos finalmente pero nunca todos a la vez, evitando sobreajuste y la sombra de la aleatoriedad. Tendremos 100 ajustes por fórmula y promediaremos los resultados obtenidos para valorar la relación sesgo-varianza.
+
+Hay un pequeño truquillo en este punto para que caret y su función train (maravilla del ML en R) reconozca la variable objetivo como le gusta, esto es, con nombres de factor y no 0 y 1 (los genios tienen sus cositas..) Para ello existe la opción make.names() que realiza este paso y nombre como X0 y X1. Antes de esto, haremos una copia de nuestra variable 0,1 porque nos gustará mantenerla así para otras cuestiones. 
+
+Una vez hecho esto, generamos una lista de fórmulas de los modelos creados y aplicamos un bucle para que se aplique la función train a cada fórmula con el esquema comentado. Como comentábamos en algún punto, dado el desbalanceo de clases en la objetivo, utilizaremos la métrica ROC para evaluar la bondad de ajuste y no el accuracy. 
+
+Tras este proceso obtenemos un boxplot con el sesgo-varianza de las métricas de ajuste a lo largo de los 100 modelos por fórmula. 
+
+
+El boxplot muestra el sesgo-varianza de las estimaciones por validación cruzada para todos nuestros modelos, comenzando por el modelo completo, modelo con las 3 nominales, modelo con la interacción, luego con las dos primeras continuas, luego la adición de otras dos continuas y finalmente el modelo con las 4 continuas y la interacción. 
+
+En general todos son modelos buenos puesto que tienen un valor de ROC en torno a 0.9, lo que indica una capacidad de clasificación muy buena. Las diferencias entre ellos son muy sutiles (por la escala del gráfico parecen mayores..)
+
+Veamos los valores medios y la desviación respecto a la media de todos los modelos para valorar numéricamente estas diferencias.
+
+```{python}
+# Arreglar variable objetivo como numeric (ya sabemos sklearn..)
+vinosDep.Compra = vinosDep.Compra.astype('int64')
+
+# Aplicacion a una fórmula
+cross_val_log(form7,data=vinosDep)
+```
+
+Creamos lista de fórmulas y aplicamos de froma general la comparativa por CV.
+
+```{python}
+
+# Creamos lista de fórmulas   
+list_form = [formC,form1,form2,form3,form4,form5,form6,form7]
+#list_form
+
+
+# Aplicamos a toda la lista la función creada (devuelve un dataframe pero está transpuesto)
+list_res = pd.DataFrame(map(lambda x: cross_val_log(x,vinosDep, seed=2022),list_form))
+
+```
+
+Arreglamos el dataset resultante para poder pintar con facilidad.
+
+```{python}
+
+# Transponer dataframe y pasar de wide a long (creando un factor variable con el nombre de cada fórmula de la lista[0,1,2,3])
+results = list_res.T.melt()
+results.columns = ['Modelo','AUC']
+results.head()
+
+# Boxplot paralelo para comparar
+plt.clf()
+sns.boxplot(x='Modelo',y='AUC',data=results,palette='viridis')
+plt.show()
+```
+
+Todos son buenos modelos puesto que tienen un ROC de 0.9. Entre ellos las diferencias son muy muy ligeras por lo que la decisión final dependerá de la complejidad de los mismos. Siempre será tentador optar por los mejores (en milésimas) como los modelos que tienen las interacciones de Clasificación y Etiqueta (esto se debe a la escala del boxplot porque si el eje empezara en 0 ni notaríamos la diferencia probablemente). 
+
+No me parece mala idea ir a modelo más complejo pero, una vez valorado (ajustado en modelo completo y evaluados los OR) la interacción pierde significación estadística y los OR por tanto, también. Es por ello que me decido por el modelo **form3** que es el que resulta más sencillo y con capacidad predictiva muy similar a los demás. 
+
+Todo esto no lo creáis, podéis probar a lanzar los siguientes códigos con otro modelo...
+
+
+# Punto de corte óptimo para la probabilidad estimada
+
+Vamos a ver las distribuciones de las probabilidades estimadas para los conjuntos de evento y no evento observado. Lo que nos gustaría es tener una separabilidad total, es decir 0 solapamiento e, idealmente, que las probabilidades estimadas para los 0 fueran muy bajas (se concentraran en valores pequeños) y las de los 1 contrariamente en valores altos cercanos a 1.
+```{python}
+metrics.get_scorer_names()
+```
+
+
+```{python}
+## Buscamos el mejor punto de corte
+
+y_pred = modelo3.predict(X_test)
+
+#sns.histplot(x=y_pred, hue=y_test)
+#px.histogram(x=y_pred, color=y_test).show()
+#gráfico de las probabilidades obtenidas
+plt.clf()
+sns.kdeplot(x=y_pred, hue=y_test, fill=True, common_norm=False, alpha=0.4)
+plt.show()
+#hist_targetbinaria(predict(modelo4, newdata=data_test,type="response"),data_test$varObjBin,"probabilidad")
+```
+
+En naranja la distribución de probabilidades estimadas para los 1. Muy buena pinta, su densidad se "apunta" en valores altos. Sin embargo la de los 0 está mucho más repartida..Recordemos que dado el desbalanceo ya intuíamos que el modelo tendría mayor dificultad en reconocer a los 0. 
+
+En cualquier caso parece que se puede conseguir una separabilidad alta entre clases con algún punto de corte de la probabilidad, esto es, diciendo todas las probabilidades estimadas mayores que punto de corte los clasifico como 1 y el resto como 0. 
+
+El valor de corte por defecto en cualquier algoritmo de clasificación es el 0.5 pero esto no necesariamente es lo más adecuado en contexto de desbalanceo. Por esta razón es bueno hacer el ejercicio de buscar el punto de corte que resulte óptimo bajo algún criterio. 
+
+En primer lugar vamos a ir a "ojímetro" dado el gráfico anterior. Probaremos el estándar 0.5 y otro punto de corte que parece que discrimina bien, en este caso parece que en el entorno de 0.75 es donde comienza a aumentar mucho la probabilidad de 1 y disminuye la de 0. Probaremos por ahí...(siempre hay que tener en cuenta la pre valencia a priori del evento, es decir, su frecuencia relativa de aparición en el archivo que era 0.78)
+
+
+Gráfico de curva ROC.
+
+```{python}
+
+def roc_grafico(test,pred): 
+    fpr, tpr, thresholds = metrics.roc_curve(test,pred)
+    roc_auc = metrics.auc(fpr, tpr)
+    
+    plt.figure()
+    lw = 2
+    plt.plot(
+        fpr,
+        tpr,
+        color="darkorange",
+        lw=lw,
+        label="ROC curve (area = %0.2f)" % roc_auc,
+    )
+    plt.plot([0, 1], [0, 1], color="navy", lw=lw, linestyle="--")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("Receiver operating characteristic example")
+    plt.legend(loc="lower right")
+    plt.show()
+    
+roc_grafico(y_test,y_pred)
+```
+
+Vale, aquí los resultados. Con el punto de corte en 0.5 el accuracy es 0.85 (85% de individuos correctamente clasificados) ahora bien, la especificidad (capacidad para clasificar a los 0) está en un 61.9% con lo que se está comentiendo casi un 40% de falsos positivos, individuos que el modelo clasifica como 1 pero en verdad son 0... Este valor es muy bajo..pobres 0...
+
+Con el punto de corte en 0.75, el accuracy disminuye un poco (algo natural puesto que no se puede maximizar todo a la vez) pero la especificidad aumenta a 0.85, solamente un 15% de falsos positivos. Se sacrifica sin embargo la sensibilidad (capacidad de clasificar a los 1) pasando de 0.91 a 0.82. 
+
+Este es el clásico trade-off entre sensibilidad y especificidad y la decisión depende mucho del contexto. Hay aplicaciones donde el coste de cometer un falso positivo es muchísimo mayor (porque se le aplica un tratamiento o prueba gold standard carísima) por lo que se tiende a minimizar este riesgo. En otras ocasiones queremos reconocer a todos los 1 seguro puesto que puede ser cuestión de vida o muerte y no nos importa tanto si se cuelan algunos 0..
+
+Existe el índice de youden que maximiza la relación entre sensibilidad y especificidad conjuntamente con una simple fórmula aditiva, sens+espec-1. 
+
+Podemos generar una rejilla de puntos de corte posibles entre 0 y 1 y valorar cual de los maximiza este criterio y compararlo con el que maximiza el accuracy. 
+
+
+```{python}
+# Aplicar corte de youden (NuestrasFunciones)
+corte = cutoff_youden(y_test,y_pred)
+corte
+```
+
+
+Nuestro ojímetro inicial no iba desencaminado y Youden dice que el punto de corte óptimo es 0.76. Por otro lado y como es de esperar pues por definición ha de ser así, el punto de corte que maximiza el accuracy es 0.49 (en el entrono de 0.5). Probamos las métricas con estos valores.
+
+Veamos ahora los coeficientes del modelo ganador.
+
+```{python}
+# Vemos los coeficientes del modelo ganador
+modelo3.summary()
+```
+
+Influencia positiva de las clasificaciones buenas y las etiquetas y clasificación del productor malas/bajas. Influencia negativa de las dos continuas. 
+
+
+Podemos ver la matriz de confusión en el conjunto de test. Para ello generaremos el factor de predicciones cortando las probabilidades estimadas por el punto de corte seleccionado y asignando 0 y 1, luego enfrentaremos a la verdad verdadera y evaluaremos su capacidad.
+
+# Matrices de confusión 
+
+Comparamos matrices de confusión con punto de corte por defecto (0.5) y punto de corte de Youden. 
+
+**Matriz de confusión (punto de corte por defecto 0.5)**
+
+```{python}
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+
+y_pred = modelo2.predict(X_test)
+cm = confusion_matrix(y_test, round(y_pred))
+
+cm_display = ConfusionMatrixDisplay(cm).plot()
+cm_display
+plt.show()
+```
+```{python}
+# Reporte de clasificación 
+print(metrics.classification_report(y_tst,round(y_pred)))
+```
+
+El modelo reconoce a 927 de 1005 positivos (1) y a 180 de 268 negativos (0). 
+
+**Matriz de confusión (punto de corte óptimo por Youden)**
+
+```{python}
+ConfusionMatrixDisplay(cm).plot()
+```
+
+```{python}
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+
+y_pred = modelo2.predict(X_test)
+y_clas =  y_pred.map(lambda x: 1 if x > corte else 0)
+
+cm = confusion_matrix(y_test, y_clas)
+
+cm_display = ConfusionMatrixDisplay(cm).plot()
+cm_display
+plt.show(cm_display)
+```
+```{python}
+# Reporte de clasificación 
+print(metrics.classification_report(y_tst,y_clas))
+```
+
+
+
+El modelo reconoce a 825 de 1005 positivos (1) y a 228 de 268 negativos (0). 
+
+
+# Interpretación de parámetros del modelo logístico
+
+Para interpretar el modelo es bueno hacer sobre los datos completos puesto que los estimadores resultarán más robustos al basarse en mayor cantidad de observaciones.
+
+```{python}
+# Ajustamos el modelo a datos completos para obtener estimadores más fiables
+modeloF = logit(form3,data=vinosDep).fit()
+modeloF.summary()
+```
+
+El summary del modelo nos da los betas, esto es la expresión lineal respecto al logit del modelo. Recordamos que el logit es el log(p(evento)/p(no evento)) = beta0 + beta1 x1 + ... betan xn
+
+Entonces no se interpretan los betas como tal sino los Odds Ratio (OR) que son la exponencial de los parámetros beta. 
+
+Para calcular los OR podríamos aplicar las exponenciales de forma manual.
+
+```{python}
+np.exp(modeloF.params)
+```
+
+Conclusiones del modelo,
+
+- La probabilidad de compra respecto a no compra de un vino con **Clasificación 2 o más estrellas** es 127 veces superior a aquellos vinos con clasificación desconocida.
+
+- La probabilidad compra respecto a no compra de un vino con **Clasificación \* ** es 6,13 veces la correspondiente a aquellos vinos con clasificación desconocida. 
+
+- Un aumento unitario en la **Calificación del productor** produce una disminución del ratio de probabilidades de compra/no compra del 35%.
+
+- La probabilidad de compra de un vino con **Etiqueta MB** se reduce en un 82% con respecto a la de un vino con Etiqueta MM. 
+
+- Cada aumento unitario del **pH** produce una reducción de la probabilidad de compra del 19%
+
+Todos estos efectos se entiende en el contexto ceteris paribus, es decir, todo lo demás constante. Con lo cual, este aumento unitario del pH produce tal disminución en la probabilidad de compra para vinos con **misma** Etiqueta, Clasificación y Calificación del productor. 
+
+

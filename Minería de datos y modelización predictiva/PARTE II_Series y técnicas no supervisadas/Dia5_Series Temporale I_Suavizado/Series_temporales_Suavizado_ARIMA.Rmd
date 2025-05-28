@@ -1,0 +1,1016 @@
+---
+title: Series temporales. Suavizado y ARIMA
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+# Series temporales I. Suavizado
+
+En esta primera sesión vamos a explorar los métodos de inspección descriptiva de una serie temporal y, posteriormente, los primeros modelos predictivos basados en suavizado exponencial. 
+
+El esquema de trabajo será: 
+
+1. Leer valores de la serie y convertir a formato legible por python
+2. Representar la serie para intuir componentes presentes
+3. Descomposición de la serie y contraste de estacionariedad
+4. Creación de partición en ventanas training/test
+5. Aplicación de modelos de suavizado y evaluación de ajuste
+
+Con esto tendremos una primera aproximación para la predicción de datos a futuro en una serie temporal univariante.
+
+```{python}
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+
+# from rpy2.robjects.packages import importr, data
+#  
+# datasets = importr('datasets')
+# AirPassengers = pd.Series(data(datasets).fetch('AirPassengers')['AirPassengers'])
+# AirPassengers
+```
+
+Asignamos manualmente la fecha de inicio a fin en intervalos mensuales ya que esta lectura no devuelve las fechas correctamente.. (tenemos de todas formas el csv en la carpeta por si lo necesitáramos). Con date_range generamos las fechas.
+
+
+```{python}
+# fechas = pd.date_range('1949-01-01','1960-12-01', 
+#               freq='MS').strftime("%Y-%m").tolist()
+# fechas = pd.Series(fechas)
+```
+
+Unimos las fechas a los valores de la serie.
+
+
+```{python}
+# Unir en un data
+# Air_R = pd.concat([fechas,AirPassengers], axis=1)
+# Air_R.columns = ['Month','Passengers']
+```
+
+Check! 
+
+
+```{python}
+# Lo leemos desde el csv que desde R en el propio R colapsa el espacio-tiempo jeje
+Air = pd.read_csv('AirPassengers.csv')
+Air.head()
+
+Air.head()
+
+```
+
+Convertimos a serie temporal para que python entienda con una simple asignación de la variable de fecha 'Month' en formato datetime por si acaso. 
+
+
+```{python}
+# Convertir en serie temporal
+Air.set_index(['Month'],inplace=True)
+Air.index=pd.to_datetime(Air.index)
+```
+
+A ver cuál es el aspecto.. 
+
+
+```{python}
+Air
+
+```
+
+Ya tenemos la serie preparada para analizar. En primer luegar haremos un estudio descriptivo, pintar, descomponer, entender las componentes y tal vez echar un vistazo a los correlogramas y tests de estacionariedad para los residuos de la descomposición "inocente" con la simple extracción de componentes. 
+
+## Estudio descriptivo
+
+Aquí opción gráfica para que los plot() salgan grandes. 
+
+```{python}
+plt.rcParams["figure.figsize"] = (12,10)
+Air.plot()
+plt.show()
+```
+
+Podemos definir una función que calcule el test de Dickey Fuller para la estacionariedad de la serie. De esta forma, en cualquier momento, introduciendo el vector de valores de la serie, obtendremos el contraste de hipótesis. 
+
+H0: La serie NO es estacionaria
+H1: La serie no es estacionaria
+
+Por tanto, nos interesará que el contraste de hipótesis sea rechazado (p-valor < 0.05). 
+
+```{python}
+from statsmodels.tsa.stattools import adfuller
+
+def test_stationarity(timeseries):
+    
+    #Perform Dickey-Fuller test:
+    print('Results of Dickey-Fuller Test:')
+    dftest = adfuller(timeseries, autolag='AIC')
+    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
+    for key,value in dftest[4].items():
+        dfoutput['Critical Value (%s)'%key] = value
+    print(dfoutput)
+```
+
+Probamos con la serie al natural. 
+
+
+```{python}
+test_stationarity(Air)
+
+```
+
+### Descomposición de la serie
+
+En base a la descomposición descriptiva por medias móviles, se extraen las componentes de tendencia y estacionalidad.
+
+**Descomposición aditiva** 
+
+```{python}
+from statsmodels.tsa.seasonal import seasonal_decompose
+
+# Aplicar descomposición aditiva
+Air_desc_Ad = seasonal_decompose(Air['Passengers'], model='additive',period=12)
+Air_desc_Ad.plot()
+plt.show()
+```
+
+Evaluamos estacionariedad de los residuos de la descomposición aditiva. Aquí, debido a que la tendencia se calcula por medias móviles, los primeros y últimos valores de la serie son NA, no se calculan. Simplemente saber esto y tener en cuenta solamente los residuos válidos. 
+
+
+```{python}
+test_stationarity(Air_desc_Ad.resid.dropna())
+
+```
+
+**Descomposición multiplicativa** 
+
+
+```{python}
+# Aplicar descomposición aditiva
+Air_desc_Mul = seasonal_decompose(Air['Passengers'], model='multiplicative',period=12)
+Air_desc_Mul.plot()
+plt.show()
+```
+
+Evaluamos estacionariedad de los residuos de la descomposición Multiplicativa. 
+
+
+```{python}
+test_stationarity(Air_desc_Mul.resid.dropna())
+
+```
+
+```{python}
+def seasonal_plot(df, season='year', index='month', column=None):
+    """Makes a seasonal plot of one column of the input dataframe. Considers the first columns by default.
+    
+    Arguments:
+    
+    - df (Pandas DataFrame): DataFrame indexed by Datetime (see `parse_dates` parameter when reading a CSV);
+    - season (string): the season that you want to considering when doing the plot, e.g., year, month, etc.;
+    - index (string): corresponds to the X axis of the plot. You should choose based on the index period that you're using;
+    - column (string, optional): the DataFrame column to consider. Picks the first one by default.
+    """
+    if column == None:
+        column = df.columns[0]
+        
+    piv_index = getattr(df.index, index)
+    piv_season = getattr(df.index, season)
+    
+    piv = pd.pivot_table(df, index=piv_index, columns=piv_season, values=[column])
+    piv.plot(figsize=(12,8))
+```
+
+```{python}
+seasonal_plot(Air)
+plt.show()
+```
+
+### Hacia la estacionariedad
+
+En esta sección vamos a extraer las componentes identificadas para generar una serie residual y comprobar si es estacionaria una vez eliminados los efectos típicos de las series temporales. 
+
+El esquema es: 
+
+1. Estabilización de la varianza. Transformación Logaritmica
+2. Diferenciación regular
+3. Diferenciación estacional
+
+Con la serie resultante, comprobaremos estacionariedad y será con la que podemos valorar autocorrelaciones simples y parciales para proponer órdenes ARIMA tentativos par la serie.
+
+#### Estabilización de la varianza. Transformación Logaritmica
+
+```{python}
+AirLog = np.log(Air)
+AirLog.plot()
+plt.show()
+```
+
+#### Diferenciación regular
+
+
+```{python}
+AirLog_diff_1 = AirLog.diff(periods=1)
+AirLog_diff_1.plot()
+plt.show()
+```
+
+#### Diferenciación estacional
+
+
+```{python}
+AirLog_diff_1_12 = AirLog_diff_1.diff(periods=12)
+AirLog_diff_1_12.plot()
+plt.show()
+```
+
+#### Comprobación de estacionariedad
+
+
+```{python}
+test_stationarity(AirLog_diff_1_12.dropna(inplace=False))
+
+```
+
+#### Autocorrelaciones 
+
+
+```{python}
+from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+```
+
+
+
+```{python}
+plot_acf(Air.dropna(inplace=False))
+plt.show()
+```
+
+
+
+```{python}
+plot_acf(AirLog_diff_1.dropna(inplace=False))
+plt.show()
+```
+
+
+
+```{python}
+plot_acf(AirLog_diff_1_12.dropna(inplace=False), lags=48)
+plt.show()
+```
+
+
+
+
+```{python}
+# Tets Ljung-box
+sm.stats.acorr_ljungbox(AirLog_diff_1_12.dropna(inplace=False), lags=[10], return_df=True)
+```
+
+
+
+```{python}
+sm.stats.acorr_ljungbox(Air, lags=[10], return_df=True)
+
+```
+
+## Modelos de suavizado
+
+Exploramos ahora los distintos métodos de suavizado estudiados sobre la serie de pasajeros de avión. Antes de nada, tomamos las ventanas de training y test para ajuste y evaluación del modelo, respectivamente. 
+
+```{python}
+import statsmodels.tsa.holtwinters as ets
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_percentage_error
+
+# Generamos la serie logaritmica
+AirLog = Air.copy()
+AirLog['Passengers'] = np.log(AirLog['Passengers'])
+AirLog
+
+
+Air_tr = Air[:'1958-12-01']
+Air_tst = Air['1959-01-01':]
+
+
+```
+
+Definimos aquí una función para evaluar un modelo (será válido para modelos de suavizado y arima de statsmodels pero no para auto_arima...distintos valores de salida y ajustaremos luego la función para ello)
+
+
+```{python}
+#forecast_accuracy(fc, test.values)
+
+# Función para evaluar modelo
+def eval_model(model,tr,tst,name='Model',lags=12):
+    lb = np.mean(sm.stats.acorr_ljungbox(model.resid, lags=lags, return_df=True).lb_pvalue)
+    pred = model.forecast(steps=len(tst))
+    fig1, ax = plt.subplots()
+    ax.plot(tr, label='training')
+    ax.plot(tst, label='test')
+    ax.plot(pred, label='prediction')
+    plt.legend(loc='upper left')
+    tit = name + ":  LjungBox p-value --> " + str(lb) + "\n MAPE: " + str(round(mean_absolute_percentage_error(tst, pred)*100,2)) + "%"
+    plt.title(tit)
+    plt.ylabel('Pasajeros')
+    plt.xlabel('Date')
+    plt.show()
+    print(lb)
+ 
+```
+
+
+#### Suavizado Simple
+
+Suavizado simple, ya sabemos que no va a ajustar bien pues es para series sin tendencia y estacionalidad. Solo por ver como ajustarlo en caso de necesidad. Esperamos predicciones constantes para la ventana de test. 
+
+```{python}
+ses = ets.SimpleExpSmoothing(Air_tr).fit()
+```
+
+
+Evaluación del modelo SES.
+
+
+```{python}
+# Evaluar SES
+eval_model(ses,Air_tr,Air_tst,'SES')
+```
+
+#### Suavizado doble de Holt
+
+Suavizado doble de Holt, con pendiente pero sin componente estacional. Esperamos una recta con pendiente como predicción.
+
+```{python}
+# Suavizado de Holt
+holt = ets.Holt(Air_tr).fit()
+holt.summary()
+
+eval_model(holt,Air_tr,Air_tst,'Holt')
+```
+
+
+#### Suavizado de Holt Winters Aditivo
+
+Ahora si, vamos a los métodos que podrían funcionar sobre esta serie. En primer lugar, Holt Winters aditivo. Con el aspecto de la serie y la clara heterocedasticidad, no parece que sea la mejor opción...pero probad con el logaritmo veréis que cambio. 
+
+```{python}
+hw_add = ets.ExponentialSmoothing(Air_tr,trend='add', damped_trend=False, seasonal='add').fit()
+hw_add.summary()
+
+eval_model(hw_add,Air_tr,Air_tst,'Hw Aditivo')
+```
+
+#### Suavizado de Holt Winters Multiplicativo
+
+Suavizado multiplicativo para captar la componente estacional no constante con el tiempo. 
+
+```{python}
+hw_mul = ets.ExponentialSmoothing(Air_tr,trend='mul', damped_trend=False, seasonal='mul').fit()
+hw_mul.summary()
+
+eval_model(hw_mul,Air_tr,Air_tst,'Hw Multiplicativo')
+```
+
+#### Autocorrelaciones con intervalos de confianza
+
+Podemos evaluar los correlogramas de los residuos para este último modelo multiplicativo.
+
+```{python}
+from pandas.plotting import autocorrelation_plot
+
+plt.clf()
+autocorrelation_plot(hw_mul.resid)
+plt.show()
+```
+
+
+Y el aditivo?
+
+```{python}
+plt.clf()
+autocorrelation_plot(hw_add.resid)
+plt.show()
+```
+
+
+# Series temporales II. Modelos ARIMA
+
+
+## Definición de funciones para evaluación
+
+Vamos a reciclar y adeuar las funciones necesarias para facilitarnos la vida en el proceso de ajuste de modelos (arima y en general).
+
+La primera puede funcionar de forma general para cualquier modelo ya que su entrada es el vector de la serie residual..así podremos usarla para culquier filtro de series que apliquemos.
+
+La segunda es una adecuación de la función definida en la parte de suavizado para que pueda funcionar sobre auto_arima (de otro paquete) pues tiene salidas y explotación de modelo distintas. En particular, en auto_arima el *forecast* es *predict* y *resid* es *resid()*
+
+```{python}
+import scipy.stats as stats
+import seaborn as sns
+
+# Función para evaluar residuos a través de contrastes de hipótesis
+def residcheck(residuals, lags):
+    """
+    Function to check if the residuals are white noise. Ideally the residuals should be uncorrelated, zero mean, 
+    constant variance and normally distributed. First two are must, while last two are good to have. 
+    If the first two are not met, we have not fully captured the information from the data for prediction. 
+    Consider different model and/or add exogenous variable. 
+        
+    If Ljung Box test shows p> 0.05, the residuals as a group are white noise. Some lags might still be significant. 
+        
+    Lags should be min(2*seasonal_period, T/5)
+        
+    plots from: https://tomaugspurger.github.io/modern-7-timeseries.html
+        
+    """
+    resid_mean = np.mean(residuals)
+    lj_p_val = np.mean(sm.stats.acorr_ljungbox(x=residuals, lags=lags).lb_pvalue)
+    norm_p_val =  stats.jarque_bera(residuals)[1]
+    adfuller_p = adfuller(residuals)[1]
+        
+      
+    fig = plt.figure(figsize=(10,8))
+    layout = (2, 2)
+    ts_ax = plt.subplot2grid(layout, (0, 0), colspan=2);
+    acf_ax = plt.subplot2grid(layout, (1, 0));
+    kde_ax = plt.subplot2grid(layout, (1, 1));
+    
+    residuals.plot(ax=ts_ax)
+    plot_acf(residuals, lags=lags, ax=acf_ax);
+    sns.kdeplot(residuals);
+    #[ax.set_xlim(1.5) for ax in [acf_ax, kde_ax]]
+    sns.despine()
+    plt.tight_layout();
+    plt.show()
+    print("** Mean of the residuals: ", np.around(resid_mean,2))
+        
+    print("\n** Ljung Box Test, p-value:", np.around(lj_p_val,3), 
+        "(>0.05, Uncorrelated)" if (lj_p_val > 0.05) else "(<0.05, Correlated)")
+        
+    print("\n** Jarque Bera Normality Test, p_value:", np.around(norm_p_val,3),
+        "(>0.05, Normal)" if (norm_p_val>0.05) else "(<0.05, Not-normal)")
+        
+    print("\n** AD Fuller, p_value:", np.around(adfuller_p,3), 
+        "(>0.05, Non-stationary)" if (adfuller_p > 0.05) else "(<0.05, Stationary)")
+    
+    return ts_ax, acf_ax, kde_ax   
+ 
+  
+```
+
+
+```{python}
+# Función para evaluar modelo auto_arima
+def eval_model_Aarima(model,tr,tst,name='Model',lags=12):
+      lb = np.mean(sm.stats.acorr_ljungbox(model.resid(), lags=lags, return_df=True).lb_pvalue)
+      pred = model.predict(n_periods=len(tst))
+      fig1, ax = plt.subplots()
+      ax.plot(tr, label='training')
+      ax.plot(tst, label='test')
+      ax.plot(pred, label='prediction')
+      plt.legend(loc='upper left')
+      tit = name + ":  LjungBox p-value --> " + str(lb) + "\n MAPE: " + str(round(mean_absolute_percentage_error(tst, pred)*100,2)) + "%"
+      plt.title(tit)
+      plt.ylabel('Serie')
+      plt.xlabel('Date')
+      plt.show()
+      model.plot_diagnostics(figsize=(14,10))
+      plt.show()  
+```
+
+## Arima Manual
+
+Podemos ajustar modelos ARIMA manuales con SARIMAX de statsmodels. Para ello, en primer lugar se deben evaluar las autodcoleraciones para identificar patrones de efectos AR y MA tentativos. Una vez tenemos una idea de los órdenes a proponer, ajustamos los modelos. 
+
+Recordamos correlogramas de la serie logaritmica y doblemente diferenciada. 
+
+```{python}
+plot_acf(AirLog_diff_1_12.dropna(inplace=False),lags=48)
+plt.show()
+plot_pacf(AirLog_diff_1_12.dropna(inplace=False),lags=48,method='ywm')
+plt.show()
+```
+
+**ACF**: En lo regular, seguro que algo hay. Podría ser un AR si consideramos que hay decrecimiento rápido y no corte en el segundo retardo. Si es así, el órden del AR sería 1 por el corte en el pacf. En lo estacional, el retardo 12 es significativo así que algo debe haber.. No queda muy claro en si parte ar o ma.. 
+
+**PACF**: Parece que hay un corte en el retardo 2, con lo que pensamos en AR, pero luego está ese retardo 3 con descenso..igual es un MA o un enmascaramiento de ambos. En lo estacional, de nuevo el retardo 12 jugando y no queda clara la dinámica de desaparición de las autocorrelaciones estacionales.. 
+
+Con esto probaremos algo así como ARIMA(0-1,1,0-1)(0-1,1,0-1)[12]
+
+**Modelo 1** -> Con ambas partes MA
+
+```{python}
+from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+  
+arima1 = SARIMAX(Air_tr, 
+                order = (0, 1, 1), 
+                seasonal_order =(0, 1, 1, 12))
+  
+arima_1 = arima1.fit()
+arima_1.summary()
+```
+
+
+
+```{python}
+
+plot_acf(arima_1.resid,lags=48)
+plt.show()
+plot_pacf(arima_1.resid,lags=48,method='ywm')
+plt.show()
+```
+
+
+
+```{python}
+eval_model(arima_1,Air_tr,Air_tst,'Arima 1')
+
+residcheck(arima_1.resid,12)
+```
+
+**Modelo 2** -> Con ambas partes AR
+
+```{python}
+arima2 = SARIMAX(Air_tr, 
+                order = (1, 1, 0), 
+                seasonal_order =(1, 1, 0, 12))
+  
+arima_2 = arima2.fit()
+arima_2.summary()
+```
+
+
+
+```{python}
+eval_model(arima_2,Air_tr,Air_tst,'Arima 2')
+
+residcheck(arima_2.resid,12)
+```
+
+
+**Modelo 3** -> Superposición de efectos ARMA en regular y estacional
+
+```{python}
+arima3 = SARIMAX(Air_tr, 
+                order = (1, 1, 1), 
+                seasonal_order =(1, 1, 1, 12))
+  
+arima_3 = arima3.fit()
+arima_3.summary()
+```
+
+
+
+```{python}
+eval_model(arima_3,Air_tr,Air_tst,'Arima 3')
+residcheck(arima_3.resid,12)
+```
+
+## Arima automático
+
+En esta parte presentamos la selección de modelos arima mediante AIC que implementa el paquete *pmdarima*. Se puede jugar bastante con órdenes máximos y mínimos para los efectos autoregresivos y de medias móviles, así como con las diferenciaciones regular y estacional. 
+
+
+Vamos a ajustar el mejor modelo ARIMA automático a la serie clásica de vuelos. 
+
+```{python}
+import pmdarima as pm
+
+# Ajustamos modelo arima step-wise con métrica AIC para la serie de vuelos
+arima_auto = pm.auto_arima(Air_tr, start_p=1, start_q=1,
+                      test='adf',       # use adftest to find optimal 'd'
+                      max_p=5, max_q=5, # maximum p and q
+                      m=12,              # frequency of series
+                      d=1,           # let model determine 'd'
+                      seasonal=True,   # No Seasonality
+                      #start_P=None, 
+                      D=None, 
+                      trace=True,
+                      error_action='ignore',  
+                      suppress_warnings=True, 
+                      stepwise=True)
+
+print(arima_auto.summary())
+```
+
+
+
+
+```{python}
+eval_model_Aarima(arima_auto,Air_tr,Air_tst,'Auto Arima')
+residcheck(arima_auto.resid(),12)
+```
+
+
+
+
+# Aplicación a Datos sobre viajeros en la ciudad de córdoba 
+
+Ejemplo Cordoba (datos Cordoba.xlsx), donde trataremos de explorar los mejores modelos de suavizado y arima para las dos series que contiene. 
+
+```{python}
+#Lectura de datos
+Cordoba = pd.read_excel('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23\\Datos\\Cordoba.xlsx')
+Cordoba.head()
+```
+
+
+Cambiamos la M típica del INE por un guion para generar la fecha correctamente. 
+
+```{python}
+Cordoba['Month'] = Cordoba.iloc[:,0].apply(lambda x: x.replace('M','-'))
+
+```
+
+
+
+```{python}
+Cordoba = Cordoba.iloc[:,1:]
+
+```
+
+Convertir a serie temporal con la fecha indexada.
+
+```{python}
+Cordoba.set_index(['Month'],inplace=True)
+Cordoba.index=pd.to_datetime(Cordoba.index)
+```
+
+Veamos.
+
+```{python}
+Cordoba.head()
+
+```
+
+Tenemos la serie de viajeros residentes y la de viajeros extranjeros. Nos preguntamos si se comportan igual en cuanto al turismo en Córdoba. 
+
+
+
+```{python}
+Cordoba.V_Resident.plot()
+plt.show()
+```
+
+
+
+```{python}
+Cordoba.V_Extranj.plot()
+plt.show()
+```
+
+
+
+Evaluar la estacionariedad de las series al natural.
+
+```{python}
+test_stationarity(Cordoba.V_Extranj)
+test_stationarity(Cordoba.V_Resident)
+```
+
+**Descomposición multiplicativa**
+
+
+```{python}
+# Aplicar descomposición aditiva
+result_E = seasonal_decompose(Cordoba.V_Extranj, model='multiplicative',period=12)
+result_E.plot()
+plt.show()
+```
+
+
+
+```{python}
+
+# Gráfico de estacionalidad
+seasonal_plot(Cordoba)
+plt.show()
+
+# Test de estacionariedad para los residuos
+test_stationarity(result_E.resid.dropna())
+```
+
+
+
+```{python}
+# Aplicar descomposición aditiva
+result_R = seasonal_decompose(Cordoba.V_Resident, model='multiplicative',period=12)
+result_R.plot()
+plt.show()
+```
+
+
+
+```{python}
+# Gráfico de estacionalidad
+seasonal_plot(Cordoba,column='V_Extranj')
+plt.show()
+
+# Test de estacionariedad para los residuos
+test_stationarity(result_R.resid.dropna())
+```
+
+
+Gráficos de aurocorrelación de residuos con bandas de confianza.
+
+```{python}
+autocorrelation_plot(result_E.resid.dropna())
+plt.show()
+autocorrelation_plot(result_R.resid.dropna())
+plt.show()
+```
+
+Contraste de Ljung-Box para residuos de la descomposición multiplicativa
+
+```{python}
+sm.stats.acorr_ljungbox(result_E.resid.dropna(), lags=12, return_df=True)
+sm.stats.acorr_ljungbox(result_R.resid.dropna(), lags=12, return_df=True)
+
+```
+
+**Partición training-test**
+
+```{python}
+Cordoba_tr = Cordoba[:'2017-12-01']
+Cordoba_tst = Cordoba['2018-01-01':]
+```
+
+## Modelos de Suavizado
+
+En esta sección vamos a ajustar modelos de suavizado que parezcar realistas para estas series. Es evidente que nada de simple y doble y nos vamos a Holt Winters. Vamos a probar aditivo y multiplicativo para ambas series.
+
+1. **Extranjeros**
+
+Modelo aditivo.
+
+```{python}
+hw_add = ets.ExponentialSmoothing(Cordoba_tr.V_Extranj,trend='add', damped_trend=False, seasonal='add').fit()
+eval_model(hw_add,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Hw Aditivo Extranjeros')
+```
+
+
+Modelo multiplicativo. 
+
+```{python}
+hw_mul = ets.ExponentialSmoothing(Cordoba_tr.V_Extranj,trend='mul', damped_trend=False, seasonal='mul').fit()
+eval_model(hw_mul,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Hw Multiplicativo Extranjeros')
+```
+
+
+2. **Residentes**
+
+Modelo aditivo.
+
+```{python}
+hw_add = ets.ExponentialSmoothing(Cordoba_tr.V_Resident,trend='add', damped_trend=False, seasonal='add').fit()
+eval_model(hw_add,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Hw Aditivo Residentes')
+```
+
+Modelo multiplicativo.
+
+```{python}
+hw_mul = ets.ExponentialSmoothing(Cordoba_tr.V_Resident,trend='mul', damped_trend=False, seasonal='mul').fit()
+eval_model(hw_mul,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Hw Multiplicativo Residentes')
+```
+
+
+## Modelos ARIMA
+
+1. **Extranjeros**
+
+Vistazo a correlogramas.
+
+```{python}
+Extranj_diff_1_12 = Cordoba_tr.V_Extranj.diff(periods=2).diff(periods=12)
+
+plot_acf(Extranj_diff_1_12.dropna(inplace=False),lags=48)
+plt.show()
+plot_pacf(Extranj_diff_1_12.dropna(inplace=False),lags=48,method='ywm')
+plt.show()
+```
+
+ACF que se corta en retardo 1, parece Ma 1 en lo regular. También hay corte en retardo 12, huele a MA 1 estacional. 
+PACF confirma un poco las sospechas, podríamos decir decrecimiento geométrico en lo regular pero podría haber bajada desde el retardo 1 por lo que podría enmascarar un AR 1.. En lo estacional, decrecimiento, parece MA. 
+
+Asi pues, podemos proponer algo como ARIMA(0-1,1,1)(0,1,1)[12] y jugar un poco por ahí. 
+
+
+**Arima Manual**
+
+
+```{python}
+from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+  
+arima1 = SARIMAX(Cordoba_tr.V_Extranj, 
+                order = (0, 1, 1), 
+                seasonal_order =(0, 1, 1, 12))
+  
+arima_1 = arima1.fit()
+arima_1.summary()
+```
+
+
+
+
+```{python}
+eval_model(arima_1,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Auto Arima')
+
+```
+
+
+
+```{python}
+arima2 = SARIMAX(Cordoba_tr.V_Extranj, 
+                order = (1, 1, 1), 
+                seasonal_order =(0, 1, 1, 12))
+  
+arima_2 = arima2.fit()
+arima_2.summary()
+```
+
+
+
+```{python}
+eval_model(arima_2,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Auto Arima')
+
+```
+
+Probamos adiferenciar de orden 2 en lo regular.
+
+```{python}
+arima3 = SARIMAX(Cordoba_tr.V_Extranj, 
+                order = (0, 2, 1), 
+                seasonal_order =(0, 1, 1, 12))
+  
+arima_3 = arima3.fit()
+arima_3.summary()
+```
+
+
+
+```{python}
+eval_model(arima_3,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Auto Arima')
+
+```
+
+
+Auto ARIMA 
+
+Vamos a aplicar automatismos para buscar los mejores órdenes en relación al AIC utilizando auro_arima.
+
+```{python}
+
+# Auto arima
+arima_auto = pm.auto_arima(Cordoba_tr.V_Extranj, start_p=1, start_q=1,
+                      test='adf',       # use adftest to find optimal 'd'
+                      max_p=5, max_q=5, # maximum p and q
+                      m=12,              # frequency of series
+                      d=2,           # let model determine 'd'
+                      seasonal=True,   # No Seasonality
+                      #start_P=None, 
+                      D=None, 
+                      trace=True,
+                      error_action='ignore',  
+                      suppress_warnings=True, 
+                      stepwise=True)
+
+print(arima_auto.summary())
+```
+
+
+
+```{python}
+residcheck(arima_auto.resid(),12)
+```
+
+
+```{python}
+eval_model_Aarima(arima_auto,Cordoba_tr.V_Extranj,Cordoba_tst.V_Extranj,'Auto Arima')
+```
+
+
+2. **Residentes**
+
+Vistazo a correlogramas.
+
+```{python}
+Resid_diff_1_12 = Cordoba_tr.V_Resident.diff(periods=1).diff(periods=12)
+
+plot_acf(Resid_diff_1_12.dropna(inplace=False),lags=48)
+plt.show()
+plot_pacf(Resid_diff_1_12.dropna(inplace=False),lags=48,method='ywm')
+plt.show()
+```
+
+Parte AR de orden 2 enmascarada por parte MA de orden 1 en lo regular. 
+
+Parte AR de orden 1-2 enmascarada por algo de MA seguramente en lo estacional
+
+Por esto nuestros candidatos a ajustar serían: ARIMA(2,1,1)(1-2,1,0-1-2)[12], o cualquiera de sus variaciones en las porsiciones autoregresivas o de medias móviles.
+
+**Arima Manual**
+
+
+```{python}
+from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+  
+arima1 = SARIMAX(Cordoba_tr.V_Resident, 
+                order = (2, 1, 1), 
+                seasonal_order =(1, 1, 0, 12))
+  
+arima_1 = arima1.fit()
+arima_1.summary()
+```
+
+
+
+```{python}
+eval_model(arima_1,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Auto Arima')
+
+```
+
+
+
+```{python}
+arima2 = SARIMAX(Cordoba_tr.V_Resident, 
+                order = (2, 1, 1), 
+                seasonal_order =(2, 1, 0, 12))
+  
+arima_2 = arima2.fit()
+arima_2.summary()
+```
+
+
+
+```{python}
+eval_model(arima_2,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Auto Arima')
+
+```
+
+
+
+```{python}
+arima3 = SARIMAX(Cordoba_tr.V_Resident, 
+                order = (2, 1, 1), 
+                seasonal_order =(2, 1, 1, 12))
+  
+arima_3 = arima2.fit()
+arima_3.summary()
+```
+
+
+
+```{python}
+eval_model(arima_3,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Auto Arima')
+
+```
+
+
+Auto ARIMA 
+
+Vamos a aplicar automatismos para buscar los mejores órdenes en relación al AIC utilizando auro_arima.
+
+```{python}
+
+# Auto arima
+arima_auto = pm.auto_arima(Cordoba_tr.V_Resident, start_p=1, start_q=1,
+                      test='adf',       # use adftest to find optimal 'd'
+                      max_p=5, max_q=5, # maximum p and q
+                      m=12,              # frequency of series
+                      d=1,           # let model determine 'd'
+                      seasonal=True,   # No Seasonality
+                      #start_P=None, 
+                      D=None, 
+                      trace=True,
+                      error_action='ignore',  
+                      suppress_warnings=True, 
+                      stepwise=True)
+
+print(arima_auto.summary())
+```
+
+
+
+```{python}
+residcheck(arima_auto.resid(),12)
+eval_model_Aarima(arima_auto,Cordoba_tr.V_Resident,Cordoba_tst.V_Resident,'Auto Arima')
+```
+
+

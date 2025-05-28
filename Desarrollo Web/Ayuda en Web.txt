@@ -1,0 +1,2 @@
+Acuerdate en Python, agregar todos los plugins necesarios:
+Google Fonds para tipografia de letras, descargarla y poder usarlas

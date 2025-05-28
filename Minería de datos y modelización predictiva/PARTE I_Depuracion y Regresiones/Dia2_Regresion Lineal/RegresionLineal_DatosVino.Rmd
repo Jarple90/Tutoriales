@@ -1,0 +1,887 @@
+---
+title: Regresión lineal Datos Vino
+author: "Guillermo Villarino"
+date: "Curso 2023-2024"
+output: rmdformats::readthedown
+---
+
+<!-- Esto es para justificar texto a la derecha -->
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+```{r setup, include=FALSE}
+library(reticulate)
+use_python("C:\\Users\\Guille\\anaconda3\\python.exe")
+```
+
+# Preliminares
+
+En este documento ajustaremos algunos modelos de regresión lineal a los datos sobre venta de vinos. Para ello, utilizamos el conjunto de datos que generamos tras la depuración, asegurando un conjunto de datos "limpios" y exentos de ciertos peligros.
+
+En primer lugar leemos el archivo generado en la depuración. Destacar que aquí se podría "repetir" el proceso con distintas posibilidades de tratamiento previo de las variables. Tal vez probar con winsorize e imputaciones aleatorias y luego comparar con otro esquema como el de eliminación de outliers y missing o con conversión de outliers a missings e imputación por modelos multivariantes...Todo un mundo de posibilidades!!
+
+```{python}
+import pandas as pd
+import numpy as np
+
+# Leer datos depurados datosvinoDep
+vinosDep = pd.read_csv('C:\\Users\\Guille\\Documents\\MineriaDatos_2022_23_Online\\PARTE I_Depuracion y Regresiones\\Dia1_MDDepuracion\\DatosVinoDep_winsRand.csv', index_col=0)
+
+# Descriptivo de comprobación
+vinosDep.head()
+```
+
+Solicitamos información sobre el tipo de variables del archivo a modo de comprobación y observamos que se han cambiado los tipos! Esto se produce en el proceso de escritura y lectura del csv... Habrá que cambiarlo.
+
+```{python}
+vinosDep.info()
+```
+
+```{python}
+# Lista de columnas con menos de 10 valores distintos. Potenciales factores!
+to_factor = list(vinosDep.loc[:,vinosDep.nunique() < 10]);  
+
+# Podemos cambiar el tipo de todas ellas a factor de una vez
+vinosDep[to_factor] = vinosDep[to_factor].astype('category')
+
+# Ordenmaos categorías de los fatcores de interés
+vinosDep["Etiqueta"] = vinosDep["Etiqueta"].cat.reorder_categories(['MM','M','R','B','MB'])
+vinosDep["Clasificacion"] = vinosDep["Clasificacion"].cat.reorder_categories(['Desc','*','**','***','****'])
+```
+
+Echamos un vistazo a las distribuciones de las variables para asegurar. Primero continuas y luego categóricas.
+
+```{python}
+# Descripción de los datos
+vinosDep.describe()
+```
+
+```{python}
+# Descripción de los datos
+vinosDep.describe(exclude=np.number)
+```
+
+Parece que todo es correcto.
+
+# Estudio descriptivo de relaciones con la respuesta
+
+En este apartado intentaremos descubrir a priori las relaciones marginales de las variables con la variable objetivo para hacernos una idea de cuales de ellas serán potencialmente influyentes en los modelos de regresión que ajustemos.
+
+```{python}
+import seaborn as sns
+
+# g = sns.PairGrid(vinosDep.iloc[:,6:])
+# g.map_diag(sns.histplot)
+# g.map_lower(sns.kdeplot)
+# g.map_upper(sns.scatterplot)
+# g.add_legend()
+# 
+# del g
+```
+
+Podemos generar este tipo de gráficos de rejilla, donde se pueden visualizar las relaciones a pares de todas las variables del archivo. En este caso, dado el carácter de los gráficos, solo será de aplicación a variables de tipo numérico.
+
+No tiene muy buena pinta ya que las variables no parecen generar un patrón especial frente a la varuiable objetivo...se intuye poco valor predictivo de las variables para la regresión lineal.
+
+Por otro lado, llama la atención la gran cantidad de 0 que tiene la variable objetivo continua Beneficio...Distribución muy compleja de modelizar..Tal vez habría que replantear el análisis y generar un modelo de regresión lineal para estimar el beneficio de los vinos que presentan algún beneficio.. Teniendo así una distribución de la variable respuesta más llevadera.
+
+En este punto, podríamos pensar en una doble vía de actuación para el modelo predictivo final que generemos. Por una parte, un modelo de clasificación previa que estime la probabilidad de ser un vino con Compra = 1 (todo vino que tiene beneficio \> 0) y posteriormente, para los clasificados como 1 en compra, un modelo de regresión lineal que estime el beneficio esperado. De alguna forma, estamos planteando un **ensamble** de modelos. Solo por plantear alternativas.
+
+## Variables de control
+
+No es mala idea generar un par de variables de "control" para la evaluación de los efectos de los predictores frente a la respuesta. La idea es la siguiente: si generamos variables en el más estricto sentido aleatorio (por ejemplo siguiendo una distribución uniforme[0,1]) cualquier relación que estas presenten con la variable respuesta serán debidas puramente al azar, con lo que se pueden considerar relaciones espurias, es decir, falsas.
+
+Por tanto, ya sea en la inspección preliminar de relaciones con la respuesta mediante correlación (relación lineal, válido para continua-continua) o VCramer (asociación en tablas de contingencia, válido para cruce de variables categóricas/nominales o continuas tramificadas) o bien en los propios modelos de regresión, las variables que presenten una menor relación con la respuesta que las variables de control, tendrán una sombra de sospecha sobre la veracidad de esa relación y probablemente serán descartadas, al menos en su estado original (siempre se pueden tratar de transformar, tramificar etc)
+
+```{python}
+vinosDep['aleatorio'] = np.random.uniform(0,1,size=vinosDep.shape[0])
+vinosDep['aleatorio2'] = np.random.uniform(0,1,size=vinosDep.shape[0])
+vinosDep.head()
+```
+
+## Interesante función para obtener un reporte descriptivo del archivo completo
+
+Evalúa a nivel univariante y bivariante las variables presentes en el archivo. También da información sobre valores extremos y missings, por lo que la podríamos utilizar en nuestra etapa de depuración de los datos.
+
+```{python}
+# pip install pandas_profiling
+import pandas_profiling
+#pandas_profiling.ProfileReport(vinosDep)
+```
+
+Muchísima información disponible en este reporte automático. A nivel univariante podemos comprobar distribuciones de variables continuas y representatividad de las categorías de los factores. A nivel bivariado, se evalúan las relaciones a pares de distintas formas. Especialmente interesante el gráfico de correlación *Auto* por su filosofía. Genera la correlación de spearman para continua-continua y v de cramer para categórica-categórica y para continua-categórica previamente tramificada la primera. Va muy en nuestra línea de pensamiento.
+
+Con ese 21% de valores nulos, vamos a decidir partir el archivo para considerar solamente los vinos de Compra = 1 y ajustaremos el modelo de regresión sobre esta submuestra. Es importante que estas decisiones sean consensuadas y se especifiquen claramente en el informe de análisis, trasladándose a la fase de interpretación de resultados.
+
+Creamos el archivo **vinosCompra** a este efecto.
+
+```{python}
+vinosCompra = vinosDep.loc[vinosDep.Compra == 1].drop(['Compra'],axis=1).reset_index(drop=True)
+vinosCompra.info()
+```
+
+```{python}
+#pandas_profiling.ProfileReport(vinosCompra)
+```
+
+En el reporte para el nuevo archivo, volvemos a tener alta correlación (en un sentido amplio) de las variables Etiqueta y Clasificación con la variable objetivo, apareciendo algo coloreada la variable Alcohol. Pocas relaciones destacables a parte de esto.
+
+Ya que vamos a hacer cosas como evaluación de las relaciones entre los predictores y la respuesta o creación masiva de transformaciones para conseguir linealidad, lo mejor es separar las respuestas y quedarnos con el input depurado, de esta forma podemos aplicar una misma función a todo el conjunto sin peligro de transformar las respuestas y cosas raras que puedan suceder.
+
+```{python}
+# Eliminar variable objetivo continua 
+varObjCont = vinosCompra.Beneficio
+imputCompra = vinosCompra.drop(['ID','Beneficio'],axis=1)
+varObjCont.info()
+imputCompra.info()
+```
+
+## Ranking de efectos a priori por V de cramer
+
+Nos encantaría tener un procedimiento que evaluara las relaciones de todas las variables del input frente a la variable objetivo (ya sea continua o binaria) y que de alguna forma ordenara esos efectos por intensiadad de asociación para generar un ranking tentativo a priori de las vaiables más interesantes a *nivel individual* (es importante destacar que estas relaciones solamente cuentan el efecto marginal de una variable con la objetivo sin considerar las posibles interacciones existentes entre variables que pueden modificar en modelo estas asociaciones).
+
+Vamos a definir algunas funciones que nos faciliten el proceso de búsqueda, automatizando lo más posible para que luego sea aplicar y evaluar!
+
+Primero nos generamos la función **cramers_v**, cuyo objetivo es calcular el valor de v de cramer para la asociación entre dos variables cualesquiera (se entiende que una de ellas será una variable objetivo...pero podría funcionar entre predictores de igual forma..) Molaría que la función distinguiera el caso de variable continua y categórica puesto que la asociación mediante vCramer se entiende en términos de cruce de dos factores y, por tanto, si la variable es continua, debe existir un proceso previo de tramificación o discretización de la variable. Entonces, programamos el proceso de tal manera que si encuentra columnas numéricas las tramifique (en 5 tramos por ejemplo) y sino simplemente calcule el valor cramer que se extrae de la tabla de contingencia de los dos factores introducidos.
+
+La filosofía de programación es la misma que en otras funciones definidas anteriormente. Como realmente querremos aplicarla sobre el input completo, estamos pensando en utilizar un apply para que aplique un mismo proceso a todas las columnas que vaya encontrando, manteniendo la variable objetivo. Por ello, es importante separar esta objetivo del conjunto de predictores así como lo hacíamos en imputaciones y transformación de missings.
+
+```{python}
+# Librería estadística!
+import scipy.stats as stats
+
+# Función para calcular VCramer (dos nominales de entrada!)
+def cramers_v(var1, varObj):
+    
+    if not var1.dtypes == 'category':
+        #bins = min(5,var1.value_counts().count())
+        var1 = pd.cut(var1, bins = 5)
+    if not varObj.dtypes == 'category': #np.issubdtype(varObj, np.number):
+        #bins = min(5,varObj.value_counts().count())
+        varObj = pd.cut(varObj, bins = 5)
+        
+    data = pd.crosstab(var1, varObj).values
+    vCramer = stats.contingency.association(data, method = 'cramer')
+    return vCramer
+
+
+# Ejemplo uso univariante
+#cramers_v(vinosCompra['Etiqueta'],vinosCompra['Beneficio'])
+
+# Aplicar la función al input completo contra la objetivo
+tablaCramer = pd.DataFrame(imputCompra.apply(lambda x: cramers_v(x,varObjCont)),columns=['VCramer'])
+
+# Obtener el gráfico de importancia de las variables frente a la objetivo continua según vcramer
+import plotly.express as px
+px.bar(tablaCramer,x=tablaCramer.VCramer,title='Relaciones frente al Beneficio').update_yaxes(categoryorder="total ascending")
+```
+
+Ya tenemos nuestro ranking de variables según cramer para todos los predictores en relación a la variable objetivo continua, Beneficio. Como ya intuíamos, las variables categóricas *Etiqueta* y *Clasificación* son las que mayor relación presentan, es decir, las que mayor patrón de asociación pueden aportar para el futuro modelo.
+
+## Exploración visula de relaciones
+
+Veamos los cruces de estas categóricas con Beneficio. En primer lugar, etiqueta presenta indicios de asociación con la objetivo puesto que tiene distribuciones que se situan en rangos distintos de beneficio.
+
+```{python}
+#sns.boxplot(x='Etiqueta',y='Beneficio',data=vinosDep,palette='viridis')
+sns.violinplot(x='Etiqueta',y='Beneficio',data=vinosCompra,palette='viridis')
+#sns.stripplot(x='Etiqueta',y='Beneficio',data=vinosDep,palette='viridis')
+#sns.swarmplot(x='Etiqueta',y='Beneficio',data=vinosDep,palette='viridis')
+```
+
+Clasificación tiene también distirbuciones distintas.
+
+```{python}
+#sns.boxplot(x='Etiqueta',y='Beneficio',data=vinosDep,palette='viridis')
+#sns.violinplot(x='Etiqueta',y='Beneficio',data=vinosCompra,palette='viridis')
+sns.stripplot(x='Clasificacion',y='Beneficio',data=vinosDep,palette='viridis')
+#sns.swarmplot(x='Etiqueta',y='Beneficio',data=vinosDep,palette='viridis')
+```
+
+De esta forma podemos explorar gráficamente las relaciones bivariantes entre variables del archivo.
+
+## Transformaciones de las variables continuas
+
+El principal objetivo de las transformaciones de las variables continuas es conseguir linealidad frente a la variable objetivo. De esta forma se prueban las transformaciones típicas (log, exp, potencias y raíces) y se escoge aquella que mayor coeficiente de correlación o valor V de Cramer presenta con la respuesta continua (o binaria en su caso).
+
+Definamos pues una función que nos facilite este proceso, de tal manera que aplique sobre una columna genérica y una variable objetivo e implemente la posibilidad de actuar en base al coeficiente de correlación (relación lineal de continua-continua) o al valor V de cramer (asociación general entre categórica-categórcia).
+
+La función va a hacer una traslación a valores positivos de la variable que encuentre (predictor continuo siempre!! no tiene sentido el log de una categórica!) y seguidamente va a generar las posibles transformaciones típicas (log, exp, potencias y raíces 2 y 4) para aplicar estos criterios sobre todas las posibilidades y escoger la que mejor valor obtenga. Vamos a ello!
+
+Aquí hay un workround para conseguir que los nombres de las transformadas se conserven en el dataset de salida que es fruto de un apply al input continuo. Seguro se puede mejorar!
+
+```{python}
+## Función mejor tranformación ##
+from sklearn.preprocessing import scale
+
+# Busca la transformación de variables input de intervalo que maximiza la VCramer o 
+# la correlación tipo Pearson con la objetivo
+def mejorTransf (vv,target, name=False, tipo = 'cramer', graf=False):
+    
+    # Escalado de datos (evitar fallos de tamaño de float64 al hacer exp de número grande..cosas de python)
+    vv = pd.Series(scale(vv), name=vv.name)
+    # Traslación a valores positivos de la variable (sino falla log y las raíces!)
+    vv = vv + abs(min(vv))+0.0001
+      
+    # Definimos y calculamos las transformaciones típicas  
+    transf = pd.DataFrame({vv.name + '_ident': vv, vv.name + '_log': np.log(vv), vv.name + '_exp': np.exp(vv), vv.name + '_sqrt': np.sqrt(vv), 
+                         vv.name + '_sqr': np.square(vv), vv.name + '_cuarta': vv**4, vv.name + '_raiz4': vv**(1/4)})
+      
+    # Distinguimos caso cramer o caso correlación
+    if tipo == 'cramer':
+      # Aplicar la función cramers_v a cada transformación frente a la respuesta
+      tablaCramer = pd.DataFrame(transf.apply(lambda x: cramers_v(x,target)),columns=['VCramer'])
+      
+      # Si queremos gráfico, muestra comparativa entre las posibilidades
+      if graf: px.bar(tablaCramer,x=tablaCramer.VCramer,title='Relaciones frente a ' + target.name).update_yaxes(categoryorder="total ascending").show()
+      # Identificar mejor transformación
+      best = tablaCramer.query('VCramer == VCramer.max()').index
+      ser = transf[best[0]].squeeze()
+    
+    if tipo == 'cor':
+      # Aplicar coeficiente de correlación a cada transformación frente a la respuesta
+      tablaCorr = pd.DataFrame(transf.apply(lambda x: np.corrcoef(x,target)[0,1]),columns=['Corr'])
+      # Si queremos gráfico, muestra comparativa entre las posibilidades
+      if graf: px.bar(tablaCorr,x=tablaCorr.Corr,title='Relaciones frente a ' + target.name).update_yaxes(categoryorder="total ascending").show()
+      # identificar mejor transformación
+      best = tablaCorr.query('Corr.abs() == Corr.abs().max()').index
+      ser = transf[best[0]].squeeze()
+  
+    # Aquí distingue si se devuelve la variable transformada o solamente el nombre de la transformación
+    if name:
+      return(ser.name)
+    else:
+      return(ser)
+
+# Ejemplo de uso univariante
+tr = mejorTransf(vinosCompra.Azucar,varObjCont, tipo='cor')
+
+tr.head(),vinosCompra.Azucar.head()
+```
+
+**Nota**: Hay que tener en cuenta que se ha aplicado un escalado y traslación de los datos por lo que no debemos esperar que los valores correspondan a la transformación en bruto sobre la variable!!
+
+### Aplicación en modadilad correlación
+
+Aplicamos de forma masiva la función mejor transformación a todas las variables de tipo numérico presentes en el input de interés. PAra ello, llamamos dos veces a la función, una devuelve las transfroamciones y la otra el nombre de las columnas que luego asociamos para obtener un solo dataset.
+
+```{python}
+# Aplicar a las variables continuas la mejor transformación según correlacion frente a varObjCont
+transf_cor = imputCompra.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjCont, tipo='cor'))
+# Pedir los nombres de las transformadas
+transf_cor_names = imputCompra.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjCont,tipo='cor', name=True))
+# Asignar nombres a las columnas de salida del proceso
+transf_cor.columns = transf_cor_names.values
+transf_cor.index
+```
+
+### Aplicación en modadilad V de Cramer
+
+Mismo procedimiento en modo V de Cramer. Recordemos que podría salir a relucir relaciones no lineales que no serían captadas en el modo correlación!
+
+```{python}
+# Aplicar a las variables continuas la mejor transfromación según cramer frente a varObjCont
+transf_cramer = imputCompra.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjCont, tipo='cramer'))
+transf_cramer_names = imputCompra.select_dtypes(include=np.number).apply(lambda x: mejorTransf(x,varObjCont,tipo='cramer', name=True))
+transf_cramer.columns = transf_cramer_names.values
+```
+
+```{python}
+transf_cramer.info()
+```
+
+Podemos generar los conjuntos de datos que tengan las mejores transformaciones con cada alternativa uniéndolos con el input compra. Se esta forma, aumentamos posibilidades de cara a la creación de modelos y tal vez hay algún patrón de transformada que resulte interesante.
+
+En nuestro caso, reservaremos el uso de las transformaciones al apartado de selección automática de variables por facilitar. Guardamos los archivos con las transformaciones para tenerlos a mano llegado el momento. 
+
+```{python}
+# Input con transformadas según correlación y variable objetivo continua
+todo_cont_cor = pd.concat([imputCompra,transf_cor,varObjCont], axis=1)
+todo_cont_cor.info()
+
+# Guardar archivo
+todo_cont_cor.to_csv('todo_cont_cor.csv')
+```
+
+```{python}
+
+# Input con transfromadas según cramer y variable objetivo continua
+todo_cont_cramer= pd.concat([imputCompra,transf_cramer,varObjCont], axis=1)
+todo_cont_cramer.info()
+
+# Guardar archivo
+todo_cont_cramer.to_csv('todo_cont_cramer.csv')
+```
+
+Podemos comprobar si las transformaciones han aumentado el valor de correlación lineal con la respuesta.
+
+En el gráfico de correlaciones se intuye la baja relación lineal presente entre las variables del archivo 2 a 2. Esto nos hace pensar que las variables continuas, a diferencia de las categóricas, no van a tener demasiada influencia en los modelos de regresión frente a la respuesta (véase el poco color que presenta la fila 1). Por otro lado, podemos estar respirar con cierta tranquilidad ante el hecho de la baja relación entre los predictores (véase la ausencia de color en todo el gráfico), cosa que evitará problemas de colinealidad en los modelos.
+
+Es evidente que, las relaciones de cada variable con su transformada han de ser muy elevadas, ya que hay un mecanismo que genera una en función exacta de la otra, por lo que esto es normal.
+
+**Nota:** La principal precaución que hay que tener es no considerar un modelo completo con todas al mismo tiempo puesto que se pueden generar los problemas de colinealidad. Solamente utilizaremos el set completo de variables cuando hagamos un proceso de selección automática de variables, proceso en el cual se elegirán las que más R2 aporten al modelo.
+
+```{python}
+# Matriz de correlaciones incluyendo transformaciones
+corr = todo_cont_cor.corr()
+corr.style.background_gradient(cmap='coolwarm').format(precision=3)
+#sns.heatmap(corr, annot=True)
+```
+
+No parece que haya mejorado mucho...Este estudio nos lleva a pensar que las variables continuas no van a aportar mucho a nuestro modelo de regresión, si bien puede suceder que en presencia de otras variables (por ejemplo las categóricas) la influencia de éstas pueda aumentar debido al distinto comportamiento (pendiente) que presenten con la respuesta en los distintos grupos que forma la variable categórica.
+
+Por este motivo, es positivo complementar este análisis descriptivo con la información que dan los modelos sobre la importancia de variables, ya que dentro de modelo, la influencia de la variable se entiende a niveles constantes de todas las demás presentes en el mismo.
+
+### Tramificación de variables continuas. Binning
+
+En cualquier caso, una vía que se puede explorar aquí para conseguir mayor influencia de las continuas es intentar tramificarlas (pasarlas a categóricas) de tal manera que se puedan descubrir patrones muy alejados d la linealidad que esta puedan contener. En el mundo de la tramificación existen dos estrategias fundamentales,
+
+1)  tramos ad-hoc para una mejor interpretabilidad (por ejemplo tramos de edad acordes a los que se utilizan en las estadísticas oficiales) en los que normalmente se realizan particiones más o menos equidistantes o basadas en un fundamento anterior.
+
+2)  tramos que maximicen cierta relación con la variable objetivo. Se pueden generar los puntos de corte de la variable a tramificar tales que los grupos creados sean lo más distintos entre sí en distribución de la variable respuesta, con lo que se "aseguran" tramos con capacidad de discriminar frente al objetivo. Suelen funcionar bien este tipo de tramificaciones pero tienen cierto peligro de sobreajustar a los datos de entrenamiento...Una de las formas de hacerlo es mediante árboles de regresión/clasificación.
+
+Un árbol realiza particiones binarias de las variables con la premisa de encontrar las mayores diferencias entre los grupos que va formando, justo lo que buscamos!
+
+```{python}
+# http://gnpalencia.org/optbinning/binning_continuous.html
+from optbinning import ContinuousOptimalBinning
+
+optb = ContinuousOptimalBinning(name='Azucar', dtype="numerical", max_n_bins=3)
+optb.fit(vinosCompra['Azucar'].values, varObjCont)
+
+x_transform_bins = optb.transform(vinosCompra['Azucar'].values, metric="bins")
+x_transform_bins
+
+# Podemos incluir la variable directamente al dataset
+vinosCompra['Azucar_rec'] = x_transform_bins
+```
+
+```{python}
+sns.violinplot(x=x_transform_bins,y=varObjCont,palette='viridis')
+```
+
+Podemos probar a realizar el binning de alguna (o todas) las variables continuas que no parezcan relevantes en el anterior análisis en pos de la mejor capacidad predictiva frente al modelo. Recomendable evaluar la salida sin restricciones del árbol y tal vez refinar con un máximo de categorías de salida en su caso. EL violin, revela las ligerísimas diferencias en distribución que se consiguen en este caso tramificando la variable Azucar.
+
+En cualquier caso, es una opción interesante a considerar para la modelización predictiva.
+
+**Cuidado con pasarse de categorías!!** Como ya sabemos las variables categóricas "consumen" grados de libertad y añaden k-1 parámetros al modelo, aumentando la complejidad del mismo y puediendo incurrir en problemas de robustez o generalización a nuevos datos. Por ello, hay que controlar el crecimiento de categorías de los factores.
+
+Son muchas las posibilidades sobre transformaciones de variables de cara a la modelización predictiva. Una estrategia interesante es aplicar múltiples vías de modelización con distintas posibilidades y comparar los resultados finales, decidiendo en base a la capacidad preditiva de la solución y su interpretabilidad.
+
+Por el momento, nos centraremos en la creación de modelos de regresión para estimar el **Beneficio de los vinos con Compra = 1** debido a esa mejor en la distribución de la respuesta.
+
+# Modelos de regresión lineal para la predicción del beneficio del vino
+
+En esta sección se ajustan distintos modelos de regresión lineal para predecir el beneficio de los vinos con compra = 1. En primer lugar, tomamos la partición training (donde ajustamos el modelo) y test (donde probamos su capacidad).
+
+## Dos filosofías de ajuste de modelos en python
+
+La filosofía de muchos de los modelos predictivos en python (muy enfocado a la automatización para la prediccion) es la de tener por separado la matriz de predictores y el vector de variable objetivo ya que bajo este esquema están programados los procedimientos. Sin embargo, esto no es algo directo cuando existen variables categóricas en el dataset. En general, estas variables no son aceptadas tal cual en los modelos y hay que realizar un paso previo de creación de variables **dummy** generando lo que se conoce como la **matriz de diseño** del modelo.
+
+**Matriz de diseño**: Es el archivo de input de los predictores con las variables continuas tal cual y las categóricas extendidas en *k-1* dummies. Además se añade una variable constante a dicha matriz. De esta forma, por columnas obtenemos los efectos explícitos de cada beta a estimar por el modelo. Bajo este paradigma se ajustan los modelos de la famosa librería sklearn de machine learning.
+
+Recordamos aquí lo que ya hemos comentado. Si tengo 4 categorías en un factor y pretendo generar dummies para todas, qué pasa?? Pues que tenemos una combinación lineal exacta de las variables en la matriz y por tanto no se puede invertir (algo necesario para la estimación por mínimos cuadrados de los parámetros del modelo) y todo se va al garete!! Por ello habría que tener en cuenta esto para generar solamente 3 dummies quedando "implícito" el efecto de la cuarta cuando todas ellas tomen el valor 0. Ok...y En este momento nos preguntamos, y donde va el efecto de esta variable? es decir, como se contabiliza en el modelo? Pues precisamente en nuestra querida constante $\beta_0$ u ordenada en el origne de la ecuación de regresión. Vale, y donde está esta constante...pues depende..si generamos todo "a mano" es decir la extensión en k-1 dummies, tendríamos que añadir, así mismo esta constante (en realidad un vector de todo 1's en la matriz de diseño).
+
+**Interfaz fórmula**: Algo muy guay que tiene R es la interfaz fórmula, mediante la cual podemos undicar el modelos que queramos ajustar de una forma muy visual. Por ejemplo, Beneficio en función de varios efectos. No tenemos más que poner **'Beneficio \~ Efecto1 + Efecto2 +..+EfectoN'** y por debajo se estarán generando estas matrices de diseño con sus dummies en caso de necesidad y su constante y de todo. De esta forma tenemos un único data_train y un único data_test (en caso de partición) que incluyen las variables objetivo y mediante la fórmula se especifica el modelo y por tanto las matrices de diseño a crear como subconjunto del data utilizado. Frecuentemente de cara a la modelización manual es bastante más cómoda esta opción que tener que eliminar de la matriz de diseño columna por columna y sin confundirnos.. Es algo tedioso.
+
+**El nexo: pasty**: Dicho esto, un paquete muy interesante que nos facilita mucho la conexión entre fórmula y matriz explícita es **pasty**. Maravillosa función dmatrices que mediante una fórmula dada genera las matrices explícitas de diseño para poder utilizarlas en sklearn o donde nos haga falta!!
+
+Vale pues estamos en disposición de jugar!!
+
+## Partición training-test
+
+De cara al ajuste manual de modelos, generamos la partición training-test. Con la primera ajustamos el modelo y con la segunda obtenemos predicciones (obviando la variable objetivo de este conjunto) y evaluamos el error cometido y el posible sobreajuste. Para esta tarea tenemos la función **train_test_split** de sklearn que realiza la partición estratificada por la variable objetivo (para mantener proporciones o distribución) con los tamaños dados y devuelve los objetos training (X de predictores e y de respuesta) y test (X de predictores e y de respuesta). La semilla hay que fijarla para obtener resultados reproducibles y que no cambien en cada ejecución.
+
+```{python}
+# Función necesaria
+from sklearn.model_selection import train_test_split
+
+# Creamos 4 objetos: predictores para tr y tst y variable objetivo para tr y tst. 
+X_train, X_test, y_train, y_test = train_test_split(imputCompra, varObjCont, test_size=0.2, random_state=42)
+
+# Comprobamos dimensiones
+print('Training dataset shape:', X_train.shape, y_train.shape)
+print('Testing dataset shape:', X_test.shape, y_test.shape)
+```
+
+**Filosofía fórmula**: Tenemos esta posibilidad en python para los modelos de regresión. Generemos primero el data_train con la variable objetivo dentro y posteriormente hacemos uso de la api para fórmulas de statmodels en su variante para regresión por mínimos cuadrados ordinarios.
+
+```{python}
+# Genero el training con la objetivo dentro 
+data_train = X_train.join(y_train)
+```
+
+**Ejemplo rápido de ajuste de modelo mediante fórmula**
+
+Tan facil como lo siguiente.
+
+```{python}
+# Importamos la api para fórmulas (en concreto ols para regresión)
+from statsmodels.formula.api import ols 
+
+# Ajusto regresión de ejemplo
+results = ols('Beneficio ~ Etiqueta + Acidez',data=data_train).fit()
+results.summary()
+```
+
+Se puede comprobar que el funcionamiento es adecuado en tanto en cuanto la variable categórica Etiqueta aparece con 5-1 = 4 efectos en el modelo (siendo el restante 'MM' recogido por la constante $\beta_0$). Además, vemos que se conserva el órden de las categorías que hemos especificado y también que el efecto tiene pinta de monótono creciente con etiqueta puesto que los betas van aumentando con el aumento de etiqueta. Si nos ponemos a valorar, pues es un modelo bastante malo con un R2 de 0,37 pero todos los parámetros son significativos a nivel estadístico (es decir, su parámetro es distinto de 0 o el IC no contiene al valor 0). Ajuste muy pobre con significación paramétrica.
+
+Lo que siempre haremos es un modelo completo de referencia para valorar la capacidad (sobre training) de este y tomarla como base para la generación de modelos más sencillos que mantengan valor predictivo en training y lo mejoren en test.
+
+## Modelo completo de referencia
+
+Para utilizar la interfaz fórmula proporcionada por la api, tenemos que especificar todos los efectos...cosa que no me gusta nada (R tiene la posibilidad de poner 'Beneficio \~ .' y se sobreentiende que quieres todos los efectos) pero la vida es durilla a veces jeje.
+
+Venga pues vamos a facilitarnos la vida un poco y generamos una función que concatene todos los efectos como string e incluso podamos eliminar algunos a placer, obteniendo la fórmula de manera automática.
+
+```{python}
+# Función para generar la fórmula por larga que sea
+def ols_formula(df, dependent_var, *excluded_cols):
+    df_columns = list(df.columns.values)
+    df_columns.remove(dependent_var)
+    for col in excluded_cols:
+        df_columns.remove(col)
+    return dependent_var + ' ~ ' + ' + '.join(df_columns)
+
+# Aplicamos a fórmula de modelo completo
+form=ols_formula(data_train,'Beneficio')
+form
+```
+
+Aplicamos el modelo completo utilizando esta fórmula.
+
+```{python}
+# Ajusto regresión según fórmula completa
+modeloC = ols(form,data=data_train).fit()
+modeloC.summary()
+```
+
+Modelo completo bastante sobreparametrizado por lo que se ve, con muchos efectos no significativos cuya aportación al R2 será seguramente despreciable y puedan ser eliminados y con una capacidad bastante baja con R2 de 0.43...mal augurio. Conjunto de datos dificil de modelizar.. Pero hay que tirar palante con lo que tenemos y luchar!
+
+**Filosofía matriz de diseño explícita**
+
+El paquete **pasty** resulta muy útil para generar las *matrices de diseño* de un modelo basadas en una fórmula concreta. Esto nos permitirá utilizar cualquier modelo de predicción de python que no acepte directamente la interfaz fórmula. Es evidente que podríamos hacer esta operación "a mano", generando la *extensión en dummies* de los factores y la posterior adición de una constante $\beta_0$ para que se refleje en el modelo, pero pienso que es más intuitivo utilizar la fórmula y así evitar errores.
+
+Aquí podemos utilizar el modelo de statmodels **OLS** pensado para filosofía matriz explícita o cualquier modelo sklearn.
+
+**Nota**: En realidad, si este fuera nuesto verdadero modus operandi, lo suyo sería generar con pasty sobre imput completo y luego tomar la partición training-test desde la matriz de diseño de datos completos!! De momento lo hacemos solamente con trianing para ejemplificar el uso y poder aplicar la función de importancia de las variables dentro de modelo que no sunciona bajo el paradigma fórmula (no admite factores!).
+
+```{python}
+import statsmodels.api as sm
+import patsy
+
+# Generamos las matrices de diseño según la fórmula de modelo completo
+y, X = patsy.dmatrices(form, data_train, return_type='dataframe')
+
+# Ahora podemos aplicar la función "oficial" de statmodels OLS (con formato y,X)
+model=sm.OLS(y,X).fit()
+model.summary()
+```
+
+Podemos comprobar que el modelo es exactamente el mismo que el ajustado mediante la fórmula y la función *ols*, pero ahora resulta que las matrices de diseño se especifican explicitamente con lo que podemos utilizar la importancia relativa de variables (que solo trabaja con variables de tipo numérico) ya que no existen factores. Veamos..
+
+### Importancia de las variables en el modelo completo
+
+```{python}
+from relativeImp import relativeImp
+
+# Nombres de predictores (en modo dummy) donde quitamos la constante
+names=X.columns.tolist()[1:]
+
+# Calculamos importancia relativa
+df_results = relativeImp(X.join(y), outcomeName = 'Beneficio', driverNames = names)
+
+# Ordenamos valores 
+df_results.sort_values(by='normRelaImpt', ascending=False)
+```
+
+```{python}
+# Gráfico de importancia relativa en base al R2
+px.bar(df_results,x='normRelaImpt',y='driver',title='Importancia relativa por aportación al R2').update_yaxes(categoryorder="total ascending").show()
+```
+
+Ahora si que si! Obtenemos un gráfico de importancia de las variables del modelo completo con el efecto de las categorías de las nominales por separado. Claramente lo que se podía esperar, las categorías de Clasificación y Etiqueta son las de mayor importancia para el modelo.
+
+**Nota**: Otro método popular para la evaluación de la importancia de variables en el modelo es la comparación de valor de los parámetros en un modelo conlos datos escalados. La idea es que si las variables tienen la misma escala, parámetro mayor (ante un aumento unitario en la misma escala de medida..) se asocia con una fuerza de explicación o cambio por unidad mayor, por lo tanto mayor aportación al R2 del modelo. Por si lo vierais por ahí.
+
+A partir del modelo completo de referencia (en cualquier variante ya sea OLS o bien ols) la idea es tratar de obtener un modelo más simple con capacidad de predicción parecida y buen aspecto del summary a nivel estadístico. De esta forma podemos trabajar hacia delante/atras siguiendo el ranking de importancia de cramer o este último dentro de modelo.
+
+## Proceso backward para pruebas de modelos manuales
+
+Vamos a generar un proceso backward eliminando variables secuencialmente según el p-valor. Presento solamente el final de mi periplo por la eliminación de variables + evaluación del summary.
+
+```{python}
+# Proceso backward de eliminación de efectos según p-valor
+form2=ols_formula(data_train,'Beneficio','prop_missings','aleatorio','aleatorio2',
+                  'PrecioBotella','Sulfatos','AcidoCitrico','Densidad',
+                  'CloruroSodico','pH','Region','Azucar')
+
+# Ajusto regresión sin prop_missings
+modeloC2 = ols(form2,data=data_train).fit()
+modeloC2.summary()
+```
+
+## Evaluación en el conjunto de test
+
+Como podemos evaluar en test la capacidad de los modelos ajustados? Pues recurriendo a la obtención de las predicciones del modelo para test y comparando estas con los valores reales recogidos en y_test. Nos apoyamos en algunas funcionalidades de metric de sklearn (cientos de métricas disponibles!). En este caso, error cuadrático medio y coeficiente de determinación R2.
+
+```{python}
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Predicciones para test modelo completo
+vinos_y_pred = modeloC.predict(X_test)
+
+# Cálculo de performance
+print("Mean squared error: %.2f" % np.sqrt(mean_squared_error(y_test, vinos_y_pred)))
+# The coefficient of determination: 1 is perfect prediction
+print("Coefficient of determination: %.2f" % r2_score(y_test, vinos_y_pred))
+
+# Gráfico de real frente a prediccion para alguna variable
+#plt.scatter(X_test.Acidez, y_test, color="black")
+#plt.scatter(X_test.Acidez, vinos_y_pred, color="blue")
+```
+
+Para el modelo final backward, tenemos.
+
+```{python}
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Predicciones para test modelo C2
+vinos_y_pred = modeloC2.predict(X_test)
+
+# Cálculo de performance
+print("Mean squared error: %.2f" % np.sqrt(mean_squared_error(y_test, vinos_y_pred)))
+# The coefficient of determination: 1 is perfect prediction
+print("Coefficient of determination: %.2f" % r2_score(y_test, vinos_y_pred))
+
+# Gráfico de real frente a prediccion para alguna variable
+#plt.scatter(X_test.Acidez, y_test, color="black")
+#plt.scatter(X_test.Acidez, vinos_y_pred, color="blue")
+```
+
+Inapreciable cambio en R2 y algo de subida de mse en unas décimas con un modelo bastante más simple. De cara a la exploración de modelos el training-test está bien como esquema pero a la hora de comparar modelo finales y seleccionar el mejor en cuanto a sesgo-varianza de las estimaciones, la mejor opción es validación cruzada repetida.
+
+## Ajuste por validación cruzada repetida
+
+En esta sección vamos a valorar el ajuste de modelos por el proceso de validación cruzada repetida, en el que se generarán **n_splits** particiones del archivo, repitiendo el proceso con distintas semillas **n_repeats** veces. De esta forma, obtenemos **n_splits x n_repeats** modelos por fórmula especificada, pudiendo así promediar los resultados obtenidos bajo muchas muestras de training-test.
+
+En este esquema, todas las observaciones del archivo son utilizadas en algún training para el ajuste del modelo y en algún test para su evaluación pero nunca simultáneamente. Así el modelo tiene instancias cambiantes para el ajuste de parámetros y para la predicción.
+
+```{python}
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import RepeatedKFold
+from sklearn.linear_model import LinearRegression
+
+model = LinearRegression()
+#model = sm.OLS(y,X)
+
+# Establecemos esquema de validación fijando random_state (reproducibilidad)
+cv = RepeatedKFold(n_splits=5, n_repeats=20, random_state=12345)
+
+# Obtenemos los resultados de R2 para cada partición tr-tst
+scores = cross_val_score(model, X, y, cv=cv)
+
+# Sesgo y varianza
+print('Coeficioente de detrminación R2: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
+```
+
+NOTA: Aquí hay que tener en cuenta que al utilizar sklearn, nos vemos obligados a considerar matrices explícitas de diseño.
+
+```{python}
+sns.violinplot(y=scores,palette='viridis')
+```
+
+### Modelo final backward
+
+Hilvanando un procedimiento de uso genérico dada una fórmula y un dataset de ajuste. Se me ocurre que dada la formula y el data, por medio de pasty extraemos matriz explícita y luego ajustamos modelo y evaluamos por cv...
+
+```{python}
+# Generamos las matrices de diseño según la fórmula de modelo completo
+y2, X2 = patsy.dmatrices(form2, vinosCompra, return_type='dataframe')
+
+# Obtenemos los resultados de R2 para cada partición tr-tst
+scores = cross_val_score(model, X2, y2, cv=cv)
+
+# Sesgo y varianza
+print('Coeficioente de detrminación R2 Modelo Final Backward: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
+
+sns.violinplot(y=scores,palette='viridis')
+```
+
+### Modelo con interacción Etiqueta-Clasificación
+
+Siendo variables que miden de alguna forma la calidad del vino, es posible que exista cierta interacción entre ellas, es decir que la pertenencia conjunta a determinada etiqueta y clasificación tenga efectos diferenciadores en el beneficio que produce el vino.
+
+```{python}
+form3 = 'Beneficio ~ Acidez + Alcohol + CalifProductor + Etiqueta*Clasificacion'
+
+# Ajusto regresión sin prop_missings
+modeloC3 = ols(form3,data=data_train).fit()
+modeloC3.summary()
+```
+
+```{python}
+# Generamos las matrices de diseño según la fórmula de modelo completo
+y3, X3 = patsy.dmatrices(form3, vinosCompra, return_type='dataframe')
+
+# Obtenemos los resultados de R2 para cada partición tr-tst
+scores = cross_val_score(model, X3, y3, cv=cv)
+
+# Sesgo y varianza
+print('Coeficioente de detrminación R2 Modelo Final Backward: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
+
+sns.violinplot(y=scores,palette='viridis')
+```
+
+Llegados a este punto se observa que, si bien el modelo con la interacción es bastante bueno, tiene un cruce de categorías de la interacción que no contiene observaciones en data_train para poder ser estimado su parámetro...esto es un fallo en la especificación del modelo y será difícil mantenerlo tal cual puesto que a nivel interpretativo carece de la robustez necesaria.
+
+Una estrategia que se puede seguir es unir alguna de las categorías implicadas en esta interacción peligrosa. En este caso podemos unir las categorías de clasificación más elevadas (se puede probar trabajando sobre las etiquetas!!).
+
+Cuando hacemos lago así, hay que tener la precaución de hacer el cambio en el dataset completo y volver a generar la partición para que los datos se actualicen en training y también en test.
+
+Actualizaremos el último modelo con esta unión de categorías.
+
+```{python}
+# Unimos la categoría minoritaria MM con M en Etiqueta (archivo general)
+vinosCompra['Etiqueta_r'] = vinosCompra.Etiqueta.replace(['M','MM'],'M-MM',inplace=False)
+
+# Trasladamos transformadas al inputCompra
+imputCompra['Etiqueta_r'] = vinosCompra.Etiqueta_r
+imputCompra['Azucar_rec'] = vinosCompra.Azucar_rec
+
+# Creamos 4 objetos: predictores para tr y tst y variable objetivo para tr y tst. 
+X_train, X_test, y_train, y_test = train_test_split(imputCompra, varObjCont, test_size=0.2, random_state=42)
+
+# Genero el training con la objetivo dentro 
+data_train_r = X_train.join(y_train)
+
+form4 = 'Beneficio ~ Acidez + Alcohol + CalifProductor + Etiqueta_r*Clasificacion'
+
+# Generamos las matrices de diseño según la fórmula de modelo completo
+y4, X4 = patsy.dmatrices(form4, vinosCompra, return_type='dataframe')
+
+# Obtenemos los resultados de R2 para cada partición tr-tst
+scores = cross_val_score(model, X4, y4, cv=cv)
+
+# Sesgo y varianza
+print('Coeficiente de detrminación R2 Modelo Final Backward interacción Rec: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
+
+sns.violinplot(y=scores,palette='viridis')
+```
+
+### Comparación por validación cruzada. Función general
+
+Una vez explorados varios modelos manuales, es bueno comprobar sus capacidades en un esquema de validación cruzada repetida con la intención de comprobar su estabilidad ante el remuestreo.
+
+El objetivo fundamental en esta parte es seleccionar el mejor modelo en relación sesgo-varianza y complejidad.
+
+Vamos a generar una función que automatice un poco el proceso de comparación por validación cruzada, de tal forma que pueda aplicar sobre cualquier fórmula epecificada. Luego será cuestión de enlistar todas las fómulas que queramos y pasar la función con un map().
+
+```{python}
+# Función para comparación por validación cruzada
+def cross_val_lin(formula, data, seed=12345):
+      # Generamos las matrices de diseño según la fórmula de modelo completo
+      y, X = patsy.dmatrices(formula, data, return_type='dataframe')
+      
+      model = LinearRegression()
+      
+      # Establecemos esquema de validación fijando random_state (reproducibilidad)
+      cv = RepeatedKFold(n_splits=5, n_repeats=20, random_state=seed)
+  
+      # Obtenemos los resultados de R2 para cada partición tr-tst
+      scores = cross_val_score(model, X, y, cv=cv)
+  
+      # Sesgo y varianza
+      print('Modelo: ' + formula)
+      print('Coeficiente de determinación R2: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
+      
+      #sns.violinplot(y=scores,palette='viridis')
+      
+      return(scores)
+```
+
+**Ejemplo de uso masivo para una lista de fórmulas distintas**
+
+```{python}
+form5 = 'Beneficio ~ Acidez + Alcohol + CalifProductor + Etiqueta + Clasificacion + Azucar_rec'
+form6 = 'Beneficio ~ Alcohol + CalifProductor + Etiqueta + Clasificacion'
+form7 = 'Beneficio ~ CalifProductor + Etiqueta + Clasificacion + Azucar_rec'
+form8 = 'Beneficio ~ Etiqueta + Clasificacion + Azucar_rec'
+
+
+# Creamos lista de fórmulas   
+list_form = [form,form2,form3,form4,form5,form6,form7,form8]
+list_form
+
+# Aplicamos a toda la lista la función creada (devuelve un dataframe pero está transpuesto)
+list_res = pd.DataFrame(map(lambda x: cross_val_lin(x,vinosCompra, seed=2022),list_form))
+
+# Trasnponer dataframe y pasar de wide a long (creando un factor variable con el nombre de cada fórmula de la lista[0,1,2,3])
+results = list_res.T.melt()
+results.columns = ['Modelo','R2']
+results.head()
+```
+
+Una vez generados los 100 modelos por fórmula con distintas particiones de trainig test bajo un esquema de validación cruzada repetida 5 Folds 20 Repeats, juntamos los resultados de los "resamples" en un dataset para generar el gráfico de boxplots de las distribuciones de R2 a través de los modelos y valorar la relación sesgo-varianza.
+
+```{python}
+# Boxplot paralelo para comparar
+sns.boxplot(x='Modelo',y='R2',data=results,palette='viridis')
+```
+
+En este punto hay que decidir un modelo final.
+
+Todo indica que el mejor modelo en todos los sentidos es el modelo final backward sin interacción. Modelo sencillo y con capacidad predictiva mayor en términos generales que sus competidores que además son más complejos. Claramente nos quedamos con el indicado como 1 que es el modelo de fórmula form2.
+
+## Ajuste del modelo final. Interpretación de parámetros
+
+Una vez escogido el modelo final. Hay que interpretar sus parámetros teniendo en cuenta que la estimación más robusta de los mismos será la que se obtiene utilizando el dataset completo y no solamente las instancias del conjunto de training.
+
+De esta forma, se ajusta el modelo final a los datos completos.
+
+```{python}
+# Ajusto regresión sin prop_missings
+modelo_final = ols(form2,data=vinosCompra).fit()
+modelo_final.summary()
+```
+
+Conclusiones que podemos sacar para aquellos vinos con Compra = 1, es decir beneficio distinto de 0:
+
+1)  Los vinos con **Clasificación 4 estrellas** tienen un beneficio estimado medio **208.67** unidades superior* a los vinos de clasificación Desconocida. El rango de variación esperado es [186.126, 233.065].
+
+2)  El beneficio estimado medio de los vinos de **Clasificación 1 estrella** es **21.22** unidades superior* al de los vinos con Clasificación Deconocida. El rango de variación esperado es [5.322, 37.112].
+
+3)  El beneficio estimado medio de los vinos de **Etiqueta MB**, es ***494.51** unidades mayor* que el de los vinos con etiqueta MM. El rango de variación esperado es [459.863, 529.148].
+
+4)  El aumento unitario de la **Calificación del Productor**, produce una *disminución* del beneficio estimado del vino de **8.52** unidades. Puede resultar sorprendente pero hay que tener en cuenta que la variación es a un nivel marginal, con lo cual se valora qué pasa con el aumento unitario de la calificación del propio productor para vinos con la misma clasificación, etiqueta y niveles de alcohol y acidez.
+
+5)  El aumento unitario en el nivel de **Acidez** produce una \*disminución del Beneficio esperado de **7.42** unidades\*\*
+
+6)  El aumento unitario en el nivel de **Alcohol** produce un \*aumento del Beneficio esperado de **3.89** unidades\*\*
+
+Todas estas afirmaciones se hacen a constancia de todas las demás variables involucradas en el modelo (ceteris paribus), es decir, se valora el cambio marginal que tiene cada variable para valores fijos de todas las demás.
+
+Así, ese aumento en los vinos de \*\*\*\* se da en aquellos que tienen la misma etiqueta, misma calificación del productor y mismos niveles de acidez y alcohol.
+
+
+
+# Anexo: Posibilidades estadísticas para evaluación de relaciones
+
+En este anexo se presentan distintos test estadísticos para poder evaluar la asociación significativa entre pares de variables.
+
+## Caso categórica-categórica. Chi cuadrado
+
+Se presenta la filosofía del test de la Chi cuadrado para tablas de contingencia que evalua la asociación entre las casillas de una tabla, es decir, si existe patrón de asociación en las probabilidades conjuntas con respecto a la hipótesis nula de independencia de soucesos (intersección nula y por tanto probabilidad condicionada igual al producto de probabilidades marginales y esas cosas)
+
+**Entendiendo el test Chi-cuadrado**
+
+Vamos a realizar un análisis de asociación de una tabla de contingencia basada en Chi-cuadrado. Para ilustrar esto, nos permitimos el lujo de adelantar algo que observaremos posteriormente y que podría afectar a nuestro modelo por la presencia de interacción entre las variables más relevantes *Clasificación* y *Etiqueta*.
+
+```{python}
+# Opción para calcular las medias de Beneficio en los cruces de Clasificación y etiqueta
+pd.pivot_table(vinosCompra,index =['Etiqueta'],columns=['Clasificacion'],values=['Beneficio'],aggfunc=[np.mean])
+
+# Tabla de contingencia con la cuenta de frecuencia de observaciones en cada cruce
+pd.crosstab(vinosCompra.Etiqueta,vinosCompra.Clasificacion)
+```
+
+Vayamos un poco más allá por un momento y nos planteamos si habrá un efecto de interacción entre estas dos variable relevantes. Que demonios queremos decir con esto? Si hay interacción, es posible que el efecto conjunto de las dos variable sobre la respuesta no sea uniforme o bien no sea el resultado de la adición simple de ambos efectos. De esta forma, nos planteamos si es igualmente probable encontrar un vino con Clasificación máxima y la peor Etiqueta, que un vino con Clasificación máxima y la mejor de las Etiquetas... La lógica puede inducir a pensar que debería existir cierto patrón de asociación..
+
+```{python}
+# Probamos el test chi cuadrado para ver las salidas
+stats.chi2_contingency(pd.crosstab(vinosCompra.Etiqueta,vinosCompra.Clasificacion).values)
+
+#pd.crosstab(data_trans.Beneficio_cut,vinosCompra.Clasificacion,margins=True,normalize='columns')
+```
+
+-   Primer valor: Valor del estadístico Chi-cuadrado
+-   Segundo valor: p-valor del contraste de hipótesis (recordemos H0: no existe asociación)
+-   Tercer valor: Grados de libertad de la distribución de contraste (filas-1)\*(columnas-1)
+-   Cuarto valor: Matriz de valores esperados bajo H0 (según las distribuciones marginales de las variables, cuan probable es encontrar casilla 1,1... p(x=1)\*p(y=1)
+
+El valor de chi es muy alto, por lo que el p-valor es muy pequeño, prácticamente 0. Por lo que se evidencia una asociación significativa entre estas dos variables, o bien, la matriz de valores observados es significativamente distinta a la matriz de valores esperados bajo independencia.
+
+**Precaución!!** Hay una cosa importante en el test Chi-cuadrado. Los resultados no son robustos si alguna de las casillas tiene frecuencia esperada menor que 5. Si se da este caso, sería necesario recodificar alguna de las variables del cruce para obtener tamaño muestral suficiente en las marginales. En nuestro caso, esto no llega a suceder (ver matriz de frecuencias esperadas), sin embargo tenemos una casilla con frecuencia observada 0, lo cual puede estar tirando mucho del valor de la chi y de alguna forma distorsionando sus resultados. Por ello, no es mala práctica unir alguna categoría para evitar esto.
+
+## Caso categorica-numérica mediante ANOVA
+
+Los contrastes estadísticos pueden resultar de utilidad para contastar la significación de las relaciones visualizadas a nivel gráfico. De esta forma, si tenemos una factor y queremos cuantificar esta significación con respecto a la variable objetivo continua, no es descabellado pensar en un análisis de la varianza con un factor para valorar si las distribuciones en los subgrupos difieren de la distribución global.
+
+El Anova realiza la descomposición de la *suma de cuadrados* en las componentes *explicada* y *residual*, de tal forma que imputamos una parte de la variabilidad de la variable continua al cambio en los niveles del factor y la parte que no se puede explicar solamente por ese cambio, queda como variabilidad no explicada. La idea es que la variabilidad explicada sea mucho mayor que la residual.
+
+Para la variable *Región*: Se observa que el p-valor es superior a 0,05 por lo que la asociación no es significativa al 95% de nivel de confianza. Esta variable no influye mucho en el Beneficio.
+
+```{python}
+# get ANOVA table as R like output
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# ANOVA región
+model = ols('Beneficio ~ C(Region)', data=vinosCompra).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+anova_table
+```
+
+Para la variable *Etiqueta*: Se observa que el p-valor es 0 por lo que la asociación es significativa a cualquier nivel de confianza. Esta variable influye mucho en el Beneficio.
+
+```{python}
+# ANOVA Etiqueta
+model = ols('Beneficio ~ C(Etiqueta)', data=vinosCompra).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+anova_table
+```
+
+**ANOVA de doble vía**. Puede resultar útil para la evaluación de efectos conjuntos de factores sobre la objetivo continua. En este caso, evaluamos la interacción de la que ya sospechábamos entre *Clasificación* y *Etiqueta*.
+
+```{python}
+# ANOVA con dos factores e interacción
+model = ols('Beneficio ~ C(Etiqueta) + C(Clasificacion) + C(Etiqueta):C(Clasificacion)', data=vinosCompra).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+anova_table
+```
+
+Se constata la significación estadística de todos los efectos presentes en el modelo. Podríamos decir que existe influencia marginal de ambos factores sobre el Beneficio pero también una influencia conjunta de ambos! Así, el beneficio esperado puede depender de la combinación de Clasificación y Etiqueta del vino.
+
+Para ilustrar este efecto, podemos recurrir al gráfico de interacciones entre dos factores y la variable continua. Aquí, detalle de programación y es que no acepta el tipo *category* (con su orden) por lo que habrá que convertir las columnas en tipo 'object' (pero solo para esto!)
+
+```{python}
+from statsmodels.graphics.factorplots import interaction_plot
+import matplotlib.pyplot as plt
+
+
+# Gráfico de interacción de las componentes del ANOVA
+fig = interaction_plot(x=vinosCompra.Etiqueta.astype('object'), trace=vinosCompra['Clasificacion'].astype('object'), response=vinosCompra['Beneficio'])
+plt.show()
+```
+
+Se evidencia interacción entre los factores cuando las líneas se cortan en algún punto. Esto quier decir que la evolución del Beneficio a lo largo de las Etiquetas no se produce de la misma forma en todas los niveles de Clasificación.
+
+Se puede observar esa falta de dato en la combinación MM - \*\*\*\*
+
+Vamos a hacer la prueba de recategorizar alguno de los niveles implicados. Para decidir cual de ellos, recurriremos a 1) frecuencia de la categoría (reporte) y 2) Similitud con la categoría adyacente (boxplot-violin). De esta forma decidimos que parece más conveniente unir Etiqueta en sus categorías M y MM.
+
+```{python}
+# Unimos la categoría minoritaria MM con M en Etiqueta
+vinosCompra['Etiqueta_r'] = vinosCompra.Etiqueta.replace(['M','MM'],'M-MM',inplace=False)
+```
+
+```{python}
+pd.crosstab(vinosCompra.Etiqueta_r,vinosCompra.Clasificacion)
+```
+
+```{python}
+# Probamos el test chi cuadrado para ver las salidas
+stats.chi2_contingency(pd.crosstab(vinosCompra.Etiqueta_r,vinosCompra.Clasificacion).values)
+```
+
+```{python}
+# Gráfico de interacción de las componentes del ANOVA
+fig = interaction_plot(x=vinosCompra.Etiqueta_r.astype('object'), trace=vinosCompra['Clasificacion'].astype('object'), response=vinosCompra['Beneficio'])
+plt.show()
+```
+
+Sigue evidenciándose interacción entre los factores, especialmente en la categoría desconocido.
