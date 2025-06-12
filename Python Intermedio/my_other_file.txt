@@ -1,0 +1,3 @@
+Este es un nuevo archivo.
+Aquí seguiré practicando la manipulación de archivos.
+¡Python es genial!
