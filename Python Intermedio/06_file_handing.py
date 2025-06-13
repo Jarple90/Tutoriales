@@ -45,16 +45,36 @@ import json
 
 
 # Datos de ejemplo para guardar en el archivo JSON
+
 data = {
-    "nombre": "José Antonio",
-    "apellido": "Romero Pérez",
+    "nombre": "Jose Antonio",
+    "apellido": "Romero Perez",
     "edad": 35,
-    "profesión": "Data Scientist en formación"
+    "profesion": "Data Scientist en formación" "Workday HCM en Estructura y Servicing"
 }
 
 # Crear y escribir en el archivo JSON
+
 with open(r"R:\PROYECTOS\Python Intermedio\json_file.json", "w", encoding="utf-8") as json_file:
-    json.dump(data, json_file, indent=4)  # Guardar el diccionario en formato JSON con sangría
+    json.dump(data, json_file, indent= 4)  # Guardar el diccionario en formato JSON con sangría
 
 print("El archivo JSON ha sido creado exitosamente.")
+
+json_dict = json.load(open(r"R:\PROYECTOS\Python Intermedio\json_file.json"))
+print(json_dict)
+print(type(json_dict))
+print(json_dict["nombre"])
+
+# csv. file
+
+# import csv
+
+# .xlsx file
+
+# import xlrd # se debe instalar el modulo
+
+# xml 
+
+# import xml
+
 
