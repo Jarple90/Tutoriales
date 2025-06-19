@@ -1,4 +1,5 @@
 from fastapi import FastAPI  # Importamos FastAPI
+from routers import products, users
 
 app = FastAPI()  # Instanciamos la aplicación
 
@@ -6,9 +7,16 @@ app = FastAPI()  # Instanciamos la aplicación
 async def root():  # Definimos la función de manera async
     return {"mensaje": "Hola FastAPI, soy José Antonio Romero Pérez"}
 
+# cd R:\PROYECTOS\Backend\FastAPI
 ### uvicorn main:app --reload python -m uvicorn main:app --reload
 
 ### url local : https://127.0.0.1:8000/url
+
+# Routers
+
+app.include_router(products.router)
+app.include_router(users.router)
+
 
 """
 Una vez ejecutado hay que mirar en la pagina http://127.0.0.1:8000/  donde:
