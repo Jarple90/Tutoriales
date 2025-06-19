@@ -3,7 +3,11 @@
 
 from fastapi import FastAPI  # Importamos FastAPI
 from routers import products  # Importamos router de productos
-from routers import users    # Importamos router de usuarios
+from routers import users # Importamos router de usuarios
+from fastapi.staticfiles import StaticFiles    # Importamos StaticFiles para imagenes y ficheros
+from routers import basic_auth_users
+import os
+
 
 app = FastAPI()  # Instanciamos la aplicación
 
@@ -20,7 +24,8 @@ async def url():
 # Incluimos los routers para modularizar las rutas por temática
 app.include_router(products.router)
 app.include_router(users.router)
-
+app.mount("/static",StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")),name="static")
+app.include_router(basic_auth_users.router)
 """
 Una vez ejecutado hay que visitar la página:
 http://127.0.0.1:8000/ → devolverá el mensaje de bienvenida
