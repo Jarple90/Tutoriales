@@ -1,20 +1,35 @@
-from fastapi import APIRouter  ###FastAPI
 
-router = APIRouter(prefix="/products",
-                tags=["products"],
-                responses = {404:{"message": "No encontrado"}}) ### app = FastAPI
+# Archivo: routers/products.py
 
-products_list = ["Producto 1", "Producto 2",
-                "Producto 3", "Producto 4", "Producto 5"]
+from fastapi import APIRouter  # Importamos APIRouter para modularizar
 
-@router.get("/")  #app.get hacemos la modificación porque es un script y funcionen en el principal, además de que ("/products/") podemos quitarlo porque hemos puesto un prefix
-async def products():
+# Definimos el router con prefijo y etiqueta para Swagger
+router = APIRouter(
+    prefix="/products",
+    tags=["products"],
+    responses={404: {"message": "No encontrado"}}
+)
+
+# Lista simulando una base de datos de productos
+products_list = ["Producto 1", "Producto 2", "Producto 3", "Producto 4", "Producto 5"]
+
+# GET /products → Devuelve todos los productos
+@router.get("/")
+async def list_products():
     return products_list
 
+# GET /products/{id} → Devuelve un producto específico
 @router.get("/{id}")
-async def products(id: int):
-    return products_list[id]
+async def get_product(id: int):
+    try:
+        return {"producto": products_list[id]}
+    except IndexError:
+        return {"error": f"No existe producto con ID {id}"}
 
+# Comentario CLI
 # cd R:\PROYECTOS\Backend\FastAPI
-# python -m uvicorn products:app --reload
+# python -m uvicorn main:app --reload  # Ejecutamos la app principal
+
+
+
 

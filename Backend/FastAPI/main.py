@@ -1,36 +1,39 @@
+# Instala FastAPI si no lo has hecho aún:
+# pip install "fastapi[all]"
+
 from fastapi import FastAPI  # Importamos FastAPI
-from routers import products, users
+from routers import products  # Importamos router de productos
+from routers import users    # Importamos router de usuarios
 
 app = FastAPI()  # Instanciamos la aplicación
 
+# Ruta principal que devuelve un mensaje de bienvenida
 @app.get("/") 
-async def root():  # Definimos la función de manera async
+async def root():
     return {"mensaje": "Hola FastAPI, soy José Antonio Romero Pérez"}
 
-# cd R:\PROYECTOS\Backend\FastAPI
-### uvicorn main:app --reload python -m uvicorn main:app --reload
-
-### url local : https://127.0.0.1:8000/url
-
-# Routers
-
-app.include_router(products.router)
-app.include_router(users.router)
-
-
-"""
-Una vez ejecutado hay que mirar en la pagina http://127.0.0.1:8000/  donde:
-
-Dara como correcto el GET con 200 OK y un error 404 Not Found
-
-Detener el server: control + c
-"""
+# Ruta con mi URL de GitHub personal
 @app.get("/url")
 async def url():
     return {"url": "https://github.com/Jarple90"}
 
-# Documentación con Swager : https://127.0.0.1:8000/docs
-# Documentación con Redocly: https://127.0.0.1:8000/redoc
+# Incluimos los routers para modularizar las rutas por temática
+app.include_router(products.router)
+app.include_router(users.router)
+
+"""
+Una vez ejecutado hay que visitar la página:
+http://127.0.0.1:8000/ → devolverá el mensaje de bienvenida
+http://127.0.0.1:8000/docs → documentación Swagger
+http://127.0.0.1:8000/redoc → documentación alternativa con Redoc
+
+Para arrancar el servidor:
+cd R:\PROYECTOS\Backend\FastAPI
+python -m uvicorn main:app --reload
+
+Para detener el servidor: CTRL + C
+
+Puedes usar Postman o Thunder Client para hacer pruebas directamente
+"""
 
 
-# Postman, Thunder Client
