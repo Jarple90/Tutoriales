@@ -46,3 +46,4 @@ Es rápido, estable y escalable
 
 # ISO/IEC 9075-1:2023 
 # W^3 Schools --> Para ampliar conocimientos y prácticar
+# https://www.mysql.com/
