@@ -1,0 +1,1 @@
+SELECT * FROM mi_primeradbmysql.users WHERE age BETWEEN 5 AND 20;

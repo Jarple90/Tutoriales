@@ -1,0 +1,1 @@
+SELECT AVG(age) FROM mi_primeradbmysql.users;

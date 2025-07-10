@@ -1,0 +1,1 @@
+SELECT CONCAT(name, 'Nombre: ', name, 'Apellidos: ', surname) AS 'Datos del usuario' FROM mi_primeradbmysql.users;
