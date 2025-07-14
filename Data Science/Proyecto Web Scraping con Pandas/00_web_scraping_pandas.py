@@ -66,6 +66,52 @@ print(len(frames)) # Muestra el número de dataframes que se han cargado
 
 print(frames[0]) # Muestra el primer dataframe para verificar que se ha cargado correctamente hay 50 dataframes, 10 temporadas y 5 ligas
 
-# Organizar Datos en un Diccionario
+### Organizar Datos en un Diccionario ###
 
 # Crer un dicionario con nombre original de la liga como llave
+dict_countries = {
+        'Spanish la liga': 'SP1', 'Spanish Segunda Division': 'SP2',
+        'German Bundesliga': 'D1',
+        'English Premier League': 'E0', 'English League Championship': 'E2','English League 2': 'E3',
+}
+
+# obtener un elemento del diccionario
+
+dict_countries['Spanish la liga'] # Devuelve 'SP1'
+
+# crear lista de ligas
+
+leagues = ['E0', 'E2', 'E3']
+frames = [] # Creamos una lista vacía para almacenar los dataframes
+
+# obtener un elemento del diccionario
+
+print(dict_countries['Spanish la liga']) # Imprime 'SP1'
+
+for league in dict_countries:
+    print(dict_countries[league]) # Imprime el nombre de la liga en español
+
+dict_historical_data = {}
+
+# hacer loop sobre llaves de diccionario
+
+# leagues = ['E0', 'E2', 'E3']
+
+for league in dict_countries:
+    frames = [] # Reiniciamos la lista de dataframes para cada liga
+    for season in range(15,25):
+        df = pd.read_csv( root + str(season)+str(season+1) + '/' + dict_countries[league] +'.csv',  encoding='ISO-8859-1')
+        df.insert(1, 'season', season) # Insertamos una nueva columna 'season' en la posición 1 del dataframe
+        df.insert(2, 'league', league) # Insertamos una nueva columna 'league' en la posición 2 del dataframe
+        frames.append(df) # Añadimos el dataframe a la lista de dataframes
+    df_concat = pd.concat(frames)
+    dict_historical_data[league] = df_concat # Añadimos el dataframe concatenado al diccionario con la llave del nombre de la liga
+
+    # Mostrar dataframe dentro de dict_hitorical_data
+    
+print(dict_historical_data.keys())  # Incluir en las llaves el nombre de la liga para obtener los datos
+
+print(list(dict_historical_data.keys()))
+
+print(dict_historical_data['Spanish la liga'].head()) # Muestra las primeras filas del dataframe de la liga española
+
