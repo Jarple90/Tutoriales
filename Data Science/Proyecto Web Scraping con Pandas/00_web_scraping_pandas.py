@@ -21,3 +21,51 @@ df_pm24.rename(columns={'Date': 'fecha',
                         'FTR': 'resultado',}, inplace=True) # Renombrar las columnas para que sean más descriptivas y en español
 
 print(df_pm24.head()) # Muestra las primeras filas del dataframe para verificar que se ha renombrado correctamente
+
+### Leer .csv de Multiples URLs con Pandas ###
+
+# https://www.football-data.co.uk/mmz4281/2425/E0.csv
+# https://www.football-data.co.uk/mmz4281/2425/E1.csv
+# https://www.football-data.co.uk/mmz4281/2425/E2.csv
+# https://www.football-data.co.uk/mmz4281/2425/E3.csv
+# https://www.football-data.co.uk/mmz4281/2425/EC.csv
+
+"https://www.football-data.co.uk/mmz4281" + "2425" + "E0" + ".csv" # Estructura de un link
+
+root = "https://www.football-data.co.uk/mmz4281/" # crear una variable raiz o root
+
+leagues = ["E0", "E1", "E2", "E3", "EC"] # Creamos una lista de ligas
+
+frames = [] # Creamos una lista vacía para almacenar los dataframes
+
+for league in leagues:
+    df = pd.read_csv( root + '2425' + '/' + league +'.csv')
+    frames.append(df) # Añadimos el dataframe a la lista de dataframes
+
+print(len(frames)) # Muestra el número de dataframes que se han cargado
+
+print(frames[0]) # Muestra el primer dataframe para verificar que se ha cargado correctamente
+
+### Multiples Temporadas ###
+
+for season in range(15,25): # Iteramos sobre las temporadas desde 2015 hasta 2025
+    print(season) # Muestra la temporada actual
+
+leagues = ["E0", "E1", "E2", "E3", "EC"] # Creamos una lista de ligas
+
+frames = [] # Creamos una lista vacía para almacenar los dataframes
+
+
+for league in leagues:
+    for season in range(15,25):
+        df = pd.read_csv( root + str(season)+str(season+1) + '/' + league +'.csv',  encoding='ISO-8859-1')
+        df.insert(1, 'season', season) # Insertamos una nueva columna 'season' en la posición 1 del dataframe
+        frames.append(df) # Añadimos el dataframe a la lista de dataframes
+
+print(len(frames)) # Muestra el número de dataframes que se han cargado
+
+print(frames[0]) # Muestra el primer dataframe para verificar que se ha cargado correctamente hay 50 dataframes, 10 temporadas y 5 ligas
+
+# Organizar Datos en un Diccionario
+
+# Crer un dicionario con nombre original de la liga como llave
