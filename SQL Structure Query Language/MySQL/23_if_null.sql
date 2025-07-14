@@ -1,0 +1,1 @@
+SELECT name, surname, IFNULL (age,0) FROM mi_primeradbmysql.users  -- también se puede usar ISNULL
