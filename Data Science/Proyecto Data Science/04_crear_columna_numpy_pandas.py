@@ -44,8 +44,8 @@ print(df_laptops.value_counts('Niveles_Precio'))
 
 condiciones = [
     df_laptops['Inches'] > 16,
-    (df_laptops['Inches']> 14) | (df_laptops['Inches'] <= 16),
-    (df_laptops['Inches']> 12) | (df_laptops['Inches'] <= 14),
+    (df_laptops['Inches']> 14) & (df_laptops['Inches'] <= 16),
+    (df_laptops['Inches']> 12) & (df_laptops['Inches'] <= 14),
     df_laptops['Inches'] <= 12
 ]
 
@@ -57,6 +57,7 @@ df_laptops['Tamaño_Pantalla'] = np.select(condiciones, valores, default = 'Sin 
 
 # Mostrar Dataframe
 
+print(df_laptops)
 print(df_laptops['Tamaño_Pantalla'])
 
 # Contar los valores en columna Screen_Size
