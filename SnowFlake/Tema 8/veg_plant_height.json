@@ -1,0 +1,246 @@
+{
+    "PLANT_NAME": "Artichoke",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 5,
+    "LOW_END_OF_RANGE": 4
+}
+{
+    "PLANT_NAME": "Arugula",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 10,
+    "LOW_END_OF_RANGE": 8
+}
+{
+    "PLANT_NAME": "Asparagus",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 6,
+    "LOW_END_OF_RANGE": 4
+}
+{
+    "PLANT_NAME": "Beans, bush",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 30,
+    "LOW_END_OF_RANGE": 24
+}
+{
+    "PLANT_NAME": "Beans, lima (bush)",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 36,
+    "LOW_END_OF_RANGE": 24
+}
+{
+    "PLANT_NAME": "Beans, pole",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 12,
+    "LOW_END_OF_RANGE": 8
+}
+{
+    "PLANT_NAME": "Beets",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 12,
+    "LOW_END_OF_RANGE": 4
+}
+{
+    "PLANT_NAME": "Broccoli",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 18
+}
+{
+    "PLANT_NAME": "Brussel sprouts",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 36,
+    "LOW_END_OF_RANGE": 24
+}
+{
+    "PLANT_NAME": "Cabbage",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 18,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Carrots",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 15,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Cauliflower",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 30,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Celery",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 18
+}
+{
+    "PLANT_NAME": "Chard",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 30,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Edamame",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 3,
+    "LOW_END_OF_RANGE": 1
+}
+{
+    "PLANT_NAME": "Corn",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 8,
+    "LOW_END_OF_RANGE": 4
+}
+{
+    "PLANT_NAME": "Cucumber",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 5,
+    "LOW_END_OF_RANGE": 1
+}
+{
+    "PLANT_NAME": "Eggplant",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 3,
+    "LOW_END_OF_RANGE": 1
+}
+{
+    "PLANT_NAME": "Endive",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 9,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Garlic",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Kale",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Kohlrabi",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 12,
+    "LOW_END_OF_RANGE": 9
+}
+{
+    "PLANT_NAME": "Leeks",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Lettuce",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 12,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Okra",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 8,
+    "LOW_END_OF_RANGE": 2
+}
+{
+    "PLANT_NAME": "Onions",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 8
+}
+{
+    "PLANT_NAME": "Parsnips",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 18,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Peas",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 6,
+    "LOW_END_OF_RANGE": 2
+}
+{
+    "PLANT_NAME": "Peppers, hot",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 48,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Peppers, bell",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 36,
+    "LOW_END_OF_RANGE": 24
+}
+{
+    "PLANT_NAME": "Potatoes",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 30,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Pumpkin",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Radishes",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 6,
+    "LOW_END_OF_RANGE": 2
+}
+{
+    "PLANT_NAME": "Spinach",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 15,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Rutabaga",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 18,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Squash, summer",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Squash, winter",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 24,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Sweet potato",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 30,
+    "LOW_END_OF_RANGE": 12
+}
+{
+    "PLANT_NAME": "Tomatoes",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 8,
+    "LOW_END_OF_RANGE": 2
+}
+{
+    "PLANT_NAME": "Turnips",
+    "UOM": "I",
+    "HIGH_END_OF_RANGE": 12,
+    "LOW_END_OF_RANGE": 6
+}
+{
+    "PLANT_NAME": "Zucchini",
+    "UOM": "F",
+    "HIGH_END_OF_RANGE": 3,
+    "LOW_END_OF_RANGE": 2
+}
