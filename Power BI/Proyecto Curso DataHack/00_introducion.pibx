@@ -1,0 +1,32 @@
+Este es un documento simplemente de lectura. 
+
+Aquí indico cual es la extensión de pbix para Power BI, indicar que este proyecto lo realicé puramente en Power BI y posteriormente he visto como se realiza la implementación entre
+Python y Power BI, los posteriores proyectos irán a raiz de lo aprendido aquí. 
+
+🧭 Introducción: Python vs DAX en Power BI
+Power BI es una herramienta poderosa para la visualización y análisis de datos, y puede complementarse eficazmente con lenguajes como Python para ampliar sus capacidades. Aunque Python y DAX pueden parecer similares en algunos aspectos, cumplen funciones distintas y se complementan según el tipo de tarea.
+
+🔄 Complementariedad entre Python y DAX
+Función	Python	DAX
+🧹 Limpieza de datos	Ideal para datos desestructurados o complejos	Básico, limitado a Power Query
+📊 Visualización	Permite gráficos personalizados (matplotlib, seaborn)	Usa visuales nativos de Power BI
+📈 Modelado avanzado	Machine Learning, estadísticas, simulaciones	No disponible
+🧮 Cálculos dinámicos	Limitado dentro de Power BI	Muy potente para KPIs, medidas y filtros
+🔄 Automatización	Scripts reutilizables y escalables	No automatiza fuera de Power BI
+🧠 Interactividad	No responde a filtros en tiempo real	Totalmente interactivo con el usuario
+
+
+⚖️ Diferencias clave
+Aspecto	Python	DAX
+Lenguaje	General-purpose, versátil	Específico para Power BI
+Uso en Power BI	Scripts en Power Query o visuales	Medidas, columnas calculadas, filtros
+Flexibilidad	Alta (puedes hacer casi todo)	Alta dentro del entorno Power BI
+Interacción con el usuario	Estática (no cambia con filtros)	Dinámica (responde a slicers, filtros)
+Requisitos	Python instalado en el sistema	Integrado en Power BI
+
+🧠 Conclusión
+Python es ideal para el preprocesamiento, análisis estadístico, y tareas complejas fuera del alcance de DAX.
+
+DAX es perfecto para medidas dinámicas, KPIs, y lógica interactiva dentro del entorno de Power BI.
+
+Usar ambos en conjunto permite construir soluciones robustas, escalables y altamente interactivas.

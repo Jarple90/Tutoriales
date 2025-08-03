@@ -1,0 +1,46 @@
+Source = Csv.Document(File.Contents("C:\Users\jarpl\Dropbox\Mi PC (DESKTOP-H2H83IA)\Desktop\IBM\Tema Adicional Power BI [13 de Dic]\Trabajo final\marketing_campaign.csv"),[Delimiter=";", Columns=29, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"ID", Int64.Type}, {"Year_Birth", Int64.Type}, {"Education", type text}, {"Marital_Status", type text}, {"Income", type number}, {"Kidhome", Int64.Type}, {"Teenhome", Int64.Type}, {"Dt_Customer", type date}, {"Recency", Int64.Type}, {"MntWines", Int64.Type}, {"MntFruits", Int64.Type}, {"MntMeatProducts", Int64.Type}, {"MntFishProducts", Int64.Type}, {"MntSweetProducts", Int64.Type}, {"MntGoldProds", Int64.Type}, {"NumDealsPurchases", Int64.Type}, {"NumWebPurchases", Int64.Type}, {"NumCatalogPurchases", Int64.Type}, {"NumStorePurchases", Int64.Type}, {"NumWebVisitsMonth", Int64.Type}, {"AcceptedCmp3", Int64.Type}, {"AcceptedCmp4", Int64.Type}, {"AcceptedCmp5", Int64.Type}, {"AcceptedCmp1", Int64.Type}, {"AcceptedCmp2", Int64.Type}, {"Complain", Int64.Type}, {"Z_CostContact", Int64.Type}, {"Z_Revenue", Int64.Type}, {"Response", Int64.Type}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Changed Type",{{"AcceptedCmp3", "Campaña_3"}, {"AcceptedCmp4", "Campaña_4"}, {"AcceptedCmp5", "Campaña_5"}, {"AcceptedCmp1", "Campaña_1"}, {"AcceptedCmp2", "Campaña_2"}, {"Response", "Última_Campaña"}, {"Z_CostContact", "Coste_Contactar"}, {"Z_Revenue", "Ingreso_Campaña_Aceptada"}, {"Recency", "Días_Última_Compra"}, {"Dt_Customer", "Inscripción_Empresa"}, {"Income", "Ingresos"}, {"Year_Birth", "Año_Nacimiento"}, {"ID", "ID_Cliente"}, {"Kidhome", "Niños"}, {"Teenhome", "Hijos_Adolescentes"}, {"MntWines", "Vino"}, {"MntFruits", "Fruta"}, {"MntMeatProducts", "Carne"}, {"MntFishProducts", "Pescado"}, {"MntSweetProducts", "Dulces"}, {"MntGoldProds", "Oro"}, {"NumDealsPurchases", "Compras_con_descuento"}, {"NumWebPurchases", "Compras_Web"}, {"NumCatalogPurchases", "Compras_Catálogo"}, {"NumStorePurchases", "Compras_en_tienda"}, {"NumWebVisitsMonth", "Visitas_Web_Últ_Mes"}}),
+    // Cambio nombre a columnas de campañas para que sea más descriptivo
+    #"Changed Type1" = Table.TransformColumnTypes(#"Renamed Columns",{{"Última_Campaña", type text}, {"Campaña_2", type text}, {"Campaña_1", type text}, {"Campaña_5", type text}, {"Campaña_4", type text}, {"Campaña_3", type text}}),
+    // Reemplazo el valor 1, de las 5 columnas Campaña y Última campaña, por SI
+    ReplaceValue = Table.ReplaceValue(#"Changed Type1","1","SI",Replacer.ReplaceText,{"Campaña_3", "Campaña_4", "Campaña_5", "Campaña_1", "Campaña_2", "Última_Campaña"}),
+    // Reemplazo el valor 0, de las 5 columnas Campaña y Última campaña, por NO
+    ReplaceValue1 = Table.ReplaceValue(ReplaceValue,"0","NO",Replacer.ReplaceText,{"Campaña_3", "Campaña_4", "Campaña_5", "Campaña_1", "Campaña_2", "Última_Campaña"}),
+    RenamedColumns1 = Table.RenameColumns(ReplaceValue1,{{"Complain", "Queja_en_2_años"}}),
+    #"Changed Typed 2" = Table.TransformColumnTypes(RenamedColumns1,{{"Queja_en_2_años", type text}}),
+    // En columna "Quja en 2 años", reemplazo el valor 1 por SI
+    ReplaceValue2 = Table.ReplaceValue(#"Changed Typed 2","1","SI",Replacer.ReplaceText,{"Queja_en_2_años"}),
+    // En columna "Quja en 2 años", reemplazo el valor 0 por NO
+    ReplaceValue3 = Table.ReplaceValue(ReplaceValue2,"0","NO",Replacer.ReplaceText,{"Queja_en_2_años"}),
+    AddColumn = Table.AddColumn(ReplaceValue3, "Personalizado", each if [Education] = "2n Cycle" then "FP" else if [Education] = "Graduation" then "Grado" else if [Education] = "Basic" then "Basicos" else if [Education] = "Master" then "Master" else if [Education] = "PhD" then "Doctorado" else null),
+    RenamedColumns2 = Table.RenameColumns(AddColumn,{{"Personalizado", "Nivel_Estudios"}}),
+    ReorderColumns = Table.ReorderColumns(RenamedColumns2,{"ID_Cliente", "Año_Nacimiento", "Education", "Nivel_Estudios", "Marital_Status", "Ingresos", "Niños", "Hijos_Adolescentes", "Inscripción_Empresa", "Días_Última_Compra", "Vino", "Fruta", "Carne", "Pescado", "Dulces", "Oro", "Compras_con_descuento", "Compras_Web", "Compras_Catálogo", "Compras_en_tienda", "Visitas_Web_Últ_Mes", "Campaña_3", "Campaña_4", "Campaña_5", "Campaña_1", "Campaña_2", "Queja_en_2_años", "Coste_Contactar", "Ingreso_Campaña_Aceptada", "Última_Campaña"}),
+    AddColumns2 = Table.AddColumn(ReorderColumns, "Personalizado", each if [Marital_Status] = "Alone" then "Separado" else if [Marital_Status] = "Divorced" then "Divorciado" else if [Marital_Status] = "Married" then "Casado" else if [Marital_Status] = "Single" then "Soltero" else if [Marital_Status] = "Together" then "Pareja" else if [Marital_Status] = "Widow" then "Viudo" else "Desconocido"),
+    SelectRows = Table.SelectRows(AddColumns2, each true),
+    ReorderColumns2 = Table.ReorderColumns(SelectRows,{"ID_Cliente", "Año_Nacimiento", "Education", "Nivel_Estudios", "Marital_Status", "Personalizado", "Ingresos", "Niños", "Hijos_Adolescentes", "Inscripción_Empresa", "Días_Última_Compra", "Vino", "Fruta", "Carne", "Pescado", "Dulces", "Oro", "Compras_con_descuento", "Compras_Web", "Compras_Catálogo", "Compras_en_tienda", "Visitas_Web_Últ_Mes", "Campaña_3", "Campaña_4", "Campaña_5", "Campaña_1", "Campaña_2", "Queja_en_2_años", "Coste_Contactar", "Ingreso_Campaña_Aceptada", "Última_Campaña"}),
+    #"Changed Type 3" = Table.TransformColumnTypes(ReorderColumns2,{{"Año_Nacimiento", Int64.Type}, {"Nivel_Estudios", type text}, {"Personalizado", type text}}),
+    RenamedColumns3 = Table.RenameColumns(#"Changed Type 3",{{"Personalizado", "Estado_Civil"}}),
+    AddColumns3 = Table.AddColumn(RenamedColumns3, "Personalizado", each Date.Year(DateTime.LocalNow())),
+    RenamedColumns4 = Table.RenameColumns(AddColumns3,{{"Personalizado", "Año_Actual"}}),
+    AddColumns4 = Table.AddColumn(RenamedColumns4, "Edad_Cliente", each [Año_Actual] - [Año_Nacimiento]),
+    AddColumns5 = Table.AddColumn(AddColumns4, "Hijos", each [Niños] + [Hijos_Adolescentes]),
+    // Calculo la mediana a la columna y sustituyo nulos por mediana
+    ReplaceValue4 = Table.ReplaceValue(AddColumns5,null,51381.5,Replacer.ReplaceValue,{"Ingresos"}),
+    // Filtro edad > 100 años
+    SelectRows1 = Table.SelectRows(ReplaceValue4, each ([Edad_Cliente] <> 123 and [Edad_Cliente] <> 124 and [Edad_Cliente] <> 130)),
+    SelectColumns = Table.SelectColumns(SelectRows1,{"Año_Nacimiento", "Edad_Cliente"}),
+    AddColumns6 = Table.TransformColumnTypes(SelectColumns,{{"Edad_Cliente", Int64.Type}}),
+    #"Changed Type 4" = Table.AddColumn(AddColumns6, "Rango_Edad", each if [Edad_Cliente] <= 30 then "< 30" else if [Edad_Cliente] <= 40 then "30 - 40" else if [Edad_Cliente] <= 50 then "40 - 50" else if [Edad_Cliente] <= 60 then "50 - 60" else if [Edad_Cliente] >= 61 then "> 60" else null),
+    #"Remove Distinct" = Table.Distinct(#"Changed Type 4", {"Rango_Edad"}),
+    AddIndexColumn = Table.AddIndexColumn(#"Remove Distinct", "Índice", 1, 1, Int64.Type),
+    RemoveColumns = Table.RemoveColumns(AddIndexColumn,{"Año_Nacimiento", "Edad_Cliente"}),
+    RenameColumns5 = Table.RenameColumns(RemoveColumns,{{"Índice", "Indice_Edad"}}),
+    TableSort = Table.Sort(RenameColumns5,{{"Indice_Edad", Order.Ascending}}),
+    RemoveColumns2 = Table.RemoveColumns(TableSort,{"Indice_Edad"}),
+    AddIndexColumn2 = Table.AddIndexColumn(RemoveColumns2, "Índice", 1, 1, Int64.Type),
+    SelectRows2 = Table.Sort(AddIndexColumn2,{{"Índice", Order.Descending}}),
+    RenameColumns6 = Table.RenameColumns(SelectRows2,{{"Índice", "Indice_Edad"}})
+in
+    RenameColumns6
