@@ -23,7 +23,7 @@ condiciones = [
     df_laptops['Price_euros'] <= 800
 ]
 
-valores = ['Muy Caro', 'Caro', 'Barato', 'Muy Barato'] # > 2500, > 2000, > 700, <= 700
+valores = ['Muy Caro', 'Caro', 'Barato', 'Muy Barato'] # > 2500, > 2000, > 800, <= 800
 
 # Añadir una nueva columna
 
