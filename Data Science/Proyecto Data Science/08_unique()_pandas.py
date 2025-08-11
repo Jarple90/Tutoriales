@@ -25,3 +25,6 @@ print(df_laptops['Inches'].unique())
 
 len(df_laptops['Inches'].unique())
 print(len(df_laptops['Inches'].unique()))
+
+len(df_laptops['Company'].unique())
+print(len(df_laptops['Company'].unique()))
