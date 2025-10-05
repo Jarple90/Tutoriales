@@ -68,4 +68,4 @@ Instala la **extensión de PowerShell** para VS Code:
 
 ✅ Mejora la experiencia de aprendizaje y desarrollo.
 
----
+--- **Se recomienda en VSC la instalación de la extensión de PowerShell. 
