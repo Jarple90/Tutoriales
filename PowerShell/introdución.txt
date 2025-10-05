@@ -1,0 +1,9 @@
+🧠 ¿Qué es PowerShell?
+
+PowerShell es:
+
+Un shell de línea de comandos (como CMD o Terminal).
+
+Un lenguaje de scripting para automatizar tareas.
+
+Originalmente creado para Windows, ahora es multiplataforma (funciona en Windows, Linux y macOS).

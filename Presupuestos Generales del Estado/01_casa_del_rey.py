@@ -166,65 +166,56 @@ df_clean = df_clean[df_clean['Tipo de Gasto'].str.upper() != 'TOTAL']
 print(df_clean[['Código Económico', 'Tipo de Gasto', 'Importe (€)']])
 
 ### Resumen Orgánico por programas del presupuesto de Gastos ###
-
+import requests
+from bs4 import BeautifulSoup
+import re
 import pandas as pd
 import matplotlib.pyplot as plt
-import requests
-import io
 
-# URLs de los CSV
-url_cap_1_8 = "https://www.sepg.pap.hacienda.gob.es/Presup/PGE2023Prorroga/MaestroDocumentos/PGE-ROM/doc/CSV/N_23P_E_R_31_101_1_1_2_1_1.CSV"
-url_cap_1_9 = "https://www.sepg.pap.hacienda.gob.es/Presup/PGE2023Prorroga/MaestroDocumentos/PGE-ROM/doc/CSV/N_23P_E_R_31_101_1_1_2_3.CSV"
+# URL del documento HTML
+url = "https://www.sepg.pap.hacienda.gob.es/Presup/PGE2023Prorroga/MaestroDocumentos/PGE-ROM/doc/HTM/N_23P_E_R_31_101_1_1_3_1.HTM"
 
-# Función para detectar la cabecera y cargar el CSV correctamente
-def cargar_csv_desde_linea_valida(url):
-    response = requests.get(url)
-    response.encoding = 'latin1'
-    lines = response.text.splitlines()
+# Descargar el contenido
+response = requests.get(url)
+soup = BeautifulSoup(response.content, "html.parser")
 
-    # Buscar la línea que contiene la cabecera real
-    for i, line in enumerate(lines):
-        if line.startswith("Año;Sección;Servicio;Programa;Económica"):
-            start_line = i
-            break
+# Extraer texto plano
+texto = soup.get_text(separator="\n")
 
-    # Cargar el CSV desde esa línea
-    csv_data = "\n".join(lines[start_line:])
-    df = pd.read_csv(io.StringIO(csv_data), sep=';', encoding='latin1')
-    df.columns = df.columns.str.strip()  # limpiar nombres de columnas
-    return df
+# Buscar líneas que contengan importes y programas
+patron = re.compile(r"(911M|TOTAL CONSOLIDADO|TOTAL)\s+Jefatura del Estado\s+(\d{1,3}\.\d{3},\d{2})\s+(\d{1,3}\.\d{3},\d{2})\s+(\d{1,3}\.\d{3},\d{2})")
+resultados = patron.findall(texto)
 
-# Cargar ambos archivos
-df_1_8 = cargar_csv_desde_linea_valida(url_cap_1_8)
-df_1_9 = cargar_csv_desde_linea_valida(url_cap_1_9)
+# Crear lista de diccionarios con conversión a euros reales
+datos = []
+for programa, cap4, cap1a8, total in resultados:
+    datos.append({
+        "Programa": programa,
+        "Capítulo 4 (€)": float(cap4.replace(".", "").replace(",", ".")) * 1000,
+        "Cap. 1 a 8 (€)": float(cap1a8.replace(".", "").replace(",", ".")) * 1000,
+        "Total (€)": float(total.replace(".", "").replace(",", ".")) * 1000
+    })
 
-# Extraer capítulo desde la columna 'Económica'
-df_1_8['Capítulo'] = df_1_8['Económica'].astype(str).str[0]
-df_1_9['Capítulo'] = df_1_9['Económica'].astype(str).str[0]
+# Crear DataFrame
+df = pd.DataFrame(datos)
 
-# Mostrar capítulos únicos
-print("Capítulos únicos en archivo 1 a 8:", sorted(df_1_8['Capítulo'].unique()))
-print("Capítulos únicos en archivo 1 a 9:", sorted(df_1_9['Capítulo'].unique()))
+# Mostrar tabla
+print("\n📊 DataFrame con importes en euros:")
+print(df)
 
-# Verificar si el capítulo 9 tiene dotación
-df_1_9['Importe'] = pd.to_numeric(df_1_9['Importe'], errors='coerce')
-dotacion_cap_9 = df_1_9[df_1_9['Capítulo'] == '9']['Importe'].sum()
-if dotacion_cap_9 > 0:
-    print("✅ Capítulo 9 tiene dotación presupuestaria:", dotacion_cap_9)
-else:
-    print("❌ Capítulo 9 no tiene dotación presupuestaria.")
-
-# Visualizar el gasto por capítulo
-gasto_por_capitulo = df_1_9.groupby('Capítulo')['Importe'].sum().sort_index()
-
-plt.figure(figsize=(10, 6))
-gasto_por_capitulo.plot(kind='bar', color='skyblue')
-plt.title('Gasto por Capítulo – Programa 911M (Capítulos 1 a 9)', fontsize=14)
-plt.xlabel('Capítulo', fontsize=12)
-plt.ylabel('Importe (€)', fontsize=12)
-plt.grid(axis='y')
+# Visualizar con gráfico de barras
+plt.figure(figsize=(8, 5))
+plt.bar(df["Programa"], df["Total (€)"], color="royalblue")
+plt.title("Presupuesto por programa - Casa del Rey (2023)")
+plt.ylabel("Total (€)")
+plt.xlabel("Programa")
+plt.grid(axis="y", linestyle="--", alpha=0.5)
 plt.tight_layout()
 plt.show()
+
+
+
+
 
 
 
