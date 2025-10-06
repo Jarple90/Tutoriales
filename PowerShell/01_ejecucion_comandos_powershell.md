@@ -58,3 +58,18 @@ PowerShell trabaja con objetos, no solo texto. Esto permite acceder a propiedade
 📌 Recomendación
 Practica estos comandos en Cloud Shell o en el terminal de Visual Studio Code para familiarizarte con la estructura de salida y el uso de objetos.
 
+
+---
+
+✍️ **Autor:** José Antonio Romero Pérez  
+🔧 **Rol técnico:** Especialista en automatización logística, reporting y mejora continua con Power Platform  
+📁 **Repositorio técnico:** [github.com/Jarple90](https://github.com/Jarple90)  
+📅 **Última actualización:** 06/10/2025  
+📌 **Licencia de uso:** Este archivo forma parte de una colección de soluciones técnicas reutilizables.  
+🔐 **Condiciones:** Uso personal y profesional con atribución. No redistribuir sin permiso explícito.  
+📣 **Contacto profesional:** Disponible en GitHub para colaboración, revisión o propuestas de mejora.
+
+---
+
+
+
