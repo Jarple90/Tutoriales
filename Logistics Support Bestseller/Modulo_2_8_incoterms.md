@@ -177,5 +177,8 @@ Has aprendido:
 
 ### ✒️ **José Antonio Romero Pérez**  
 **Logistics Support – Bestseller**  
-📅 *12/02/2026*
+📅 *11/02/2026*
+
+
+#Fin en Bestseller
 
