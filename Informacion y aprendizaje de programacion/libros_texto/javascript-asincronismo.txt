@@ -1,0 +1,981 @@
+
+Asincronismo en JavaScript
+Asincronismo en JavaScript
+Charly Cimino
+Este documento se encuentra bajo Licencia Creative Commons 4.0 Internacional (CC BY -NC-ND 4.0). Usted es libre para:
+▪Compartir —copiar y redistribuir el material en cualquier medio o formato.
+Bajo los siguientes términos:
+▪Atribución —Usted debe darle crédito a esta obra de manera adecuada, proporcionando un enlace a la licencia, e indicando si se han 
+realizado cambios. Puede hacerlo en cualquier forma razonable, pero no de forma tal que sugiera que usted o su uso tienen el apo yo 
+del licenciante.
+▪No Comercial —Usted no puede hacer uso del material con fines comerciales.
+▪Sin Derivar —Si usted mezcla, transforma o crea nuevo material a partir de esta obra, usted no podrá distribuir el material modificado.
+Versión 2023.08.06
+
+Asincronismo en JavaScript
+Antes de empezar…
+Los ejemplos que veremos en esta PPT han sido 
+probados en Google Chrome, con un script embebido.
+<!DOCTYPE html>
+<html>
+<head>
+<metacharset="utf-8">
+<scripttype="text/javascript ">
+//ElcódigoJSvaaquí...
+</script>
+</head>
+<body></body>
+</html>
+•Objetos literales.
+•Funciones como elementos de primera clase.
+•let / const .
+•Plantillas literales.
+•Funciones flecha.
+•Función reduce de arrays .
+•Concepto de JSON.T emas necesarios para entender la PPT
+Muchos de los temas necesarios para entender asincronismo se 
+encuentran en la PPT JavaScript Contemporáneo .
+
+Asincronismo en JavaScript
+JavaScript es single -threaded
+El motor de JavaScript dispone de un solo thread de 
+ejecución, por lo que es fácil generar bloqueos.
+https://developer.mozilla.org/en -US/docs/Learn/JavaScript/Asynchronous/Concepts#javascript_is_single -threadedconsole.log("Mostrando primermensaje" );
+alert("Sinoaceptas, nocontinúa" );
+console.log("Mostrando segundo mensaje" );
+
+Asincronismo en JavaScript
+Código bloqueante
+function tareaCostosaCPU (){
+for(leti=0;i<2000000;i++){
+newDate().toString ().toUpperCase ();
+}//2millones deciclosparasimular carga
+return"elResultado ";
+}
+constdata=tareaCostosaCPU ();
+console.log(data);
+console.log("Otraoperación..." );T arda unos cuantos segundos
+Esperando que 
+termine la función
+https://lemoncode.net/lemoncode -blog/2018/1/29/javascript -asincronoLas operaciones que dependen del CPU son bloqueantes y síncronas.
+No puede ejecutarse más de una tarea al mismo tiempo, salvo con la ayuda de Web Workers , 
+que permitirían usar otro thread (no cubiertos en esta PPT). 
+
+Asincronismo en JavaScript
+La web de hoy en día
+https://www.msn.com/es -ar
+Artículos obtenidos desde 
+APIs de sitios de noticias.Clima obtenido desde API propia 
+Publicidad obtenida desde 
+API de Google Ads .Las apps y sitios web 
+modernos se integran con 
+multitud de servicios externos.
+¿Cómo se hace para que tales 
+peticiones no bloqueen la 
+carga del resto del contenido?
+
+Asincronismo en JavaScript
+Ejecución síncrona
+constmostrarNoticias =()=>{
+console.log("Obtenidas noticias desdeAPIsexternas..." );
+}
+constmostrarClima =()=>{
+console.log("Obtenido climadesdeAPIpropia..." );
+}
+constmostrarPublicidad =()=>{
+console.log("Obtenida imagendesdeGoogleAds...");
+}
+mostrarNoticias ();
+mostrarClima (); //Debe esperar a mostrarNoticias ()
+mostrarPublicidad ();//Debe esperar a mostrarClima ()
+https://msl -network.readthedocs.io/en/latest/concurrency_async.htmlSi las peticiones se ejecutaran de forma síncrona, tardaría mucho más en cargarse completamente. 
+Mientras no termine una operación, 
+no se devuelve el control a la CPU.
+Los resultados se obtienen en el orden previsto.
+Tarea 1 Tarea 2 Tarea 3 Tarea 4 Tarea 5
+Tiempo total de ejecución
+Asincronismo en JavaScript
+Callback
+Es una función que será invocada por otra a modo de 
+notificación cuando termine su tarea.
+https://lenguajejs.com/javascript/asincronia/callbacks/#callbacks -en-javascriptconstrealizarAccion =()=>{
+console.log("Acción realizada" );
+}
+setTimeout (realizarAccion ,3000);
+console.log("Otraacción");
+3 segundos luego… 
+🕛🕒🕕setTimeout es una función que establece un retardo en milisegundos.
+El primer parámetro es la referencia a una función (el callback ), que será invocada 
+cuando transcurran los milisegundos indicados como segundo parámetro.
+Función que oficia de callback .
+setTimeout (()=>{
+console.log("Acción realizada" );
+},3000);
+console.log("Otraacción");Muchas veces, los callbacks se definen “ in situ ” 
+
+Asincronismo en JavaScript
+Ejecución asíncrona
+constmostrarNoticias =()=>{
+setTimeout (()=>{
+console.log("Obtenidas noticias desdeAPIpropia..." );
+},7000);//Simulamos 7segundos dedemora
+}
+constmostrarClima =()=>{
+setTimeout (()=>{
+console.log("Obtenido climadesdeweather-api...");
+},3000);//Simulamos 3segundos dedemora
+}
+constmostrarPublicidad =()=>{
+setTimeout (()=>{
+console.log("Obtenida imagendesdewebexterna" );
+},5000);//Simulamos 5segundos dedemora
+}
+mostrarNoticias ();   //#3
+mostrarClima ();      //#1
+mostrarPublicidad (); //#2
+https://msl -network.readthedocs.io/en/latest/concurrency_async.htmlSimulamos asincronismo con la función setTimeout que genera un retraso en la ejecución.
+🕛 00:00
+🕒 00:03
+🕔 00:05
+🕖 00:07
+Los resultados se obtienen a medida que se van resolviendo las peticiones. En total la demora fue de 7 segundos, en lugar de 15.
+Tarea 1
+Tarea 2
+Tarea 3
+Tarea 4
+Tarea 5
+Tiempo total de ejecución
+T area síncrona … … …
+Llamadas asíncronasRespuestasAsincronismo en JavaScript
+Asincronismo ≠ Paralelismo
+https://eloquentjavascript.net/11_async.htmlJavaScript tiene un solo hilo de ejecución.
+No puede ejecutarse más de una tarea al mismo tiempo, salvo con la ayuda de Web Workers . 
+El asincronismo consiste en continuar con el resto de las operaciones, sin detenerse a esperar la 
+respuesta de una operación externa. Cuando esté disponible, se procesará.
+
+Asincronismo en JavaScript
+Analogía con la cocina
+Queremos cocinar milanesas con puré de papas.
+Como cocineros solo tenemos dos manos. Podemos hacer una sola tarea a la vez.
+Si quisiéramos hacer más de una al mismo tiempo, necesitamos ayudantes (analogía con los Web Workers ).
+Lo que sí podemos hacer es trabajar mientras otras cosas, que no dependen de nuestras manos, suceden 
+en segundo plano (calentar aceite, hervir agua, descongelar algo en el microondas, etc.)
+Poner aceite a calentar… 🕛🕒🕕Poner agua a hervir… 🕛🕒🕕
+¡Agua hirviendo! ✅
+¡Aceite caliente! ✅
+
+Asincronismo en JavaScript
+Operaciones no bloqueantes
+https://lemoncode.net/lemoncode -blog/2018/1/29/javascript -asincronoLas operaciones de entrada/salida ocurren de forma asíncrona, por ende, no bloquean la ejecución.
+Función 
+setTimeoutFunción 
+setIntervalEventos
+Peticiones 
+HTTPAcceso a BDLeer y escribir 
+en un archivoAlgunas formas de generar asincronismo
+Si JS es single -thread , ¿cómo es que estas operaciones corren en segundo plano?
+Porque ocurren en el ámbito de las APIs implementadas por los navegadores junto al sistema operativo. Nos abstraemos.
+
+Asincronismo en JavaScript
+Cómo funciona el asincronismo en JS
+1. Se apila console.log("Op.sync#1")
+2. Se imprime "Op.sync #1"
+3. Se desapilaconsole.log("Op.sync#1")
+4. Se apila setTimeout (function callback (){...}
+5. Se ejecuta setTimeout . El browser delega el control de tiempo al 
+timer . No hay nada más que hacer.
+6. Se desapilasetTimeout (function callback (){...})
+7. Se apila console.log("Op.sync#3")
+8. Se imprime "Op.sync #3"
+9. Se desapilaconsole.log("Op.sync#3")
+10. Tras dos segundos, el timer finaliza y pone el callback ()en cola.
+11. El Event Loop toma el primer elemento de la cola y lo apila.
+12. Se ejecuta callback (), por ende, se apila 
+console.log("Op.async#2")
+13. Se imprime "Op.async#2“
+14. Se desapilaconsole.log("Op.async#2")
+15. Se desapilacallback ()console.log("Op.sync#1");
+setTimeout (function callback (){
+console.log("Op.async#2");
+},2000);//2segundos dedemora
+console.log("Op.sync#3");
+Ver GIF
+
+Asincronismo en JavaScript
+Paso a paso
+function operacionSync (n){
+console.log(`Operación sync#${n}`);
+}
+function mostrarNoticiasAsync (){
+setTimeout (function getNoticias (){
+console.log("2)Obtenidas noticias desdeAPIpropia..." );
+},7000);//Simulamos 7segundos dedemora
+}
+function mostrarClimaAsync (){
+setTimeout (function getClima (){
+console.log("4)Obtenido climadesdeweather-api...");
+},3000);//Simulamos 3segundos dedemora
+}
+function mostrarPublicidadAsync (){
+setTimeout (function getPublicidad (){
+console.log("6)Obtenida imagendesdewebexterna" );
+},5000);//Simulamos 5segundos dedemora
+}
+operacionSync (1);
+mostrarNoticiasAsync ();
+operacionSync (3);
+mostrarClimaAsync ();
+operacionSync (5);
+mostrarPublicidadAsync ();
+operacionSync (7);
+https://www.jsv9000.app/En esta app web se puede comprobar de forma gráfica e interactiva cómo 
+funciona paso a paso el Event Loop de JavaScript que gestiona el asincronismo.
+
+Asincronismo en JavaScript
+Primero lo sync , luego lo async
+constprocesarSync =(ciclos)=>{
+for(leti=0;i<ciclos;i++){
+newDate().toString ().toUpperCase ();
+}//Soloproduce cargaparalaCPU
+return`${ciclos}ciclosprocesados.`
+}
+constprocesarAsync =()=>{
+setTimeout (()=>{
+console.log("Op.async");
+},0);//Nodemoranada,peroesasync
+}
+console.log(procesarSync (10));
+procesarAsync ();
+console.log(procesarSync (1000000));JavaScript no procesará los callbacks de las llamadas asíncronas hasta que no se completen las 
+llamadas síncronas, aun cuando éstas últimas demoren más tiempo.
+Mientras no termine 
+procesarSync (1000000), el 
+callback de procesarAsync ()
+deberá esperar.Varios segundos 
+luego… 🕛🕒🕕
+Probar ejecución en JSV9000
+
+Asincronismo en JavaScript
+Esperar por valor async
+Es muy común requerir datos de forma externa a nuestra app y tener que esperarlos para procesar algún resultado.
+¿Cómo aguardamos que concluya la operación para evitar este escenario? 
+constgetResultadoAsync =()=>{
+letresultado ;
+setTimeout (()=>{
+resultado ="elResultado ";
+},5000);
+returnresultado ;
+}
+constdata=getResultadoAsync ();
+console.log(data);//undefined
+console.log("Otraoperación..." );T arda 5 segundos
+Aún no se sabe
+Captura de la consola
+Asincronismo en JavaScript
+Manejar asincronismo en JavaScript
+La sintaxis para manejar asincronismo en JavaScript 
+ha ido evolucionando a lo largo del tiempo.
+https://anexsoft.com/javascript -callbacks -vs-promise -vs-asyncawaitCallbacks
+Promesas
+Introducidas en ES6 2015async / await
+Introducidos en ES6 2017
+
+Asincronismo en JavaScript
+Asincronismo con callbacks
+La función realizarAccionAsync es quien ejecutará la tarea asíncrona, recibiendo parámetros 
+como cualquier otra, pero en especial también la referencia a una función que oficie de callback .
+Cuando se complete la tarea asíncrona, se invocará al callback con el resultado obtenido.
+https://lenguajejs.com/javascript/asincronia/callbacks/#asincron%C3%ADa -con -callbacksconstrealizarAccionAsync =(param1,param2,callback )=>{
+/*Serealizan lasacciones asíncronas.
+Seinvocaacallback ()cuandofinaliza.
+Porconvención:
+Sihuboerrores: callback (elError,undefined );
+Sihuboéxito: callback (null,data);
+*/
+}
+constprocesarResultado =(err,res)=>{
+/*Usar'err'o'res'segúnseaelcaso*/
+}
+realizarAccionAsync ("arg1","arg2",procesarResultado );
+//realizarAccionAsync ("arg1", "arg2", procesarResultado ());Por convención, el callback espera 
+recibir dos valores como parámetros: 
+un error y un resultado, en ese orden.En general, si existe un 
+error, la respuesta será 
+undefined , de lo contrario, 
+será un valor válido.
+No poner paréntesis.
+Queremos enviar la 
+referencia de la función, no 
+queremos ejecutarla aún.
+Nombrar a los parámetros callback , err o res son convenciones/costumbres. Podrían nombrarse de cualquier forma.
+
+Asincronismo en JavaScript
+Simulacro de asincronismo con callback
+La función getPersonaByID simulará una conexión con una BD para buscar un registro por ID y devolverlo. 
+Si no existe, devolverá un objeto que representa un error.
+constgetPersonaByID =(id,callback )=>{
+console.log(`VamosabuscarID${id}enlaBD.Paciencia...` );
+setTimeout (()=>{
+if(id>0){
+constper={id,nombre: "Pepe"};//ES6
+//constper={id:id,nombre: "Pepe"}; //ES5
+callback (null,per);
+}else{
+constunError ={
+error:true,
+msg:`Noseencontró persona conID${id}`
+}
+callback (unError);//Equivalente: callback (unError,undefined );
+}
+},3000);//Demora3segundos
+}
+constprocesarPersona =(err,res)=>{
+if(err){//Equivalente: (err!=undefined )
+console.error(`ERROR: ${err.msg}`);
+}else{
+console.log("¡Seencontró 1registro!" ,res);
+}
+}
+getPersonaByID (10,procesarPersona );
+getPersonaByID (-4,procesarPersona );3 segundos luego… 
+🕛🕒🕕
+
+Asincronismo en JavaScript
+Uso de XMLHttpRequest para peticiones HTTP
+Gracias a objetos de tipo XMLHttpRequest de AJAX es posible recibir datos de un 
+servidor de forma asíncrona, sin recargar la página web .
+https://developer.mozilla.org/es/docs/Web/Guide/AJAX/Getting_Startedconstxhttp=newXMLHttpRequest ();
+xhttp.onreadystatechange =function (){
+//Aquívanlasoperaciones...
+};
+xhttp.open("GET",laUrl,true);
+xhttp.send();
+Inicializa la solicitud enviando qué método HTTP usar 
+(GET, POST, etc.), la URL y un booleano que indica si la 
+operación será asíncrona o no (por defecto, true )Se crea un objeto de tipo XMLHttpRequestSe envía la referencia a una 
+función para ser invocada 
+cuando ocurra el evento 
+readystatechange .
+Se envía la solicitudxhttp.onreadystatechange =function (){
+if(this.readyState ==4){
+// https://www.w3schools.com/tags/ref_httpmessages.asp
+if(this.status==200){ 
+//Petición exitosa
+//this.responseText :Respuesta delservidor comoString
+//this.responseXML :Respuesta delservidor comoXML
+//JSON.parse (this.responseText ):Parseado aJSON
+}else{
+//Errorenlapetición
+}
+}else{
+//Aúnnoestálisto
+}
+};Para comprobar que la petición fue correcta
+
+Asincronismo en JavaScript
+APIs de prueba
+nationalize.io es un API que predice la nacionalidad en base a 
+un nombre de pila.
+{
+  "name": "manolo",
+  "country" : [{
+      "country_id ": "ES",
+      "probability" : 0.3459614259041762
+    },
+    {
+      "country_id ": "EC",
+      "probability" : 0.15046485347831998
+    },
+    {
+      "country_id ": "PE",
+      "probability" : 0.09927136127621772
+    }
+  ]
+}
+https://api.nationalize.io/?name= manoloREST Countries es un API que devuelve información 
+sobre países ( JSON de ejemplo recortado ).
+[
+{
+"name": {
+"common": "Spain",
+"official ": "Kingdom ofSpain",
+"nativeName ": {
+"spa": {
+"official ": "Reino de España" ,
+"common": "España"
+}
+}
+},
+"capital" : [
+"Madrid"
+],
+"languages ": {
+"spa": "Spanish"
+},
+"flags": {
+"png": "https://flagcdn.com/w320/es.png" ,
+"svg": "https://flagcdn.com/ es.svg"
+}
+}
+]
+https://restcountries.com/v3.1/alpha/ esMás APIs públicas y gratuitas:
+https://github.com/public -apis/public -apis
+
+Asincronismo en JavaScript
+Uso de callback para app de nombre
+Pedimos el nombre al usuario (se espera sin espacios) y 
+obtenemos un listado de nacionalidades probables, gracias a la 
+API de nationalize.io .
+Mostramos el ID del país que tenga la máxima probabilidad.constgetRespuestaHttp =(url,callback )=>{
+constOK=200;constDONE=4;
+constxhttp=newXMLHttpRequest ();
+xhttp.onreadystatechange =function (){//Seusafunction paraqueelthisquedeligado
+if(this.readyState ==DONE){
+if(this.status==OK){
+constresp=JSON.parse(this.responseText );
+callback (null,resp);
+}else
+callback (this.response ?JSON.parse(this.response ):{error:"Desconocido" });
+}
+};
+xhttp.open("GET",url,true);
+xhttp.send();
+}
+constaveriguarPais =nombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+getRespuestaHttp (url,(err,res)=>{ //Estaeslafunción callback
+if(err)
+alert(`Error: ${err.error}`);
+else{
+letpaisMasProb =res.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+alert(`Paísmásprobable: ${paisMasProb .country_id }`);
+}
+});
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+Modificá la url para que sea incorrecta y así poder testear 
+cómo se comporta el callback ante un error, por ejemplo:
+consturl=`https://api.nationalize.io/? nazme=${nombre}`;
+consturl=`https://api.na wtionalize.io/? name=${nombre}`;
+
+Asincronismo en JavaScript
+Anidamiento de callbacks
+Pedimos el nombre al usuario (se espera sin 
+espacios) y obtenemos un listado de nacionalidades 
+probables, gracias a la API de nationalize.io .
+T omamos el ID del país que tenga la máxima 
+probabilidad y obtenemos el nombre del país en 
+español, gracias a la API de REST Countries . constgetRespuestaHttp =(url,callback )=>{
+constOK=200;constDONE=4;
+constxhttp=newXMLHttpRequest ();
+xhttp.onreadystatechange =function (){//Seusafunction paraqueelthisquedeligado
+if(this.readyState ==DONE){
+if(this.status==OK){
+constresp=JSON.parse(this.responseText );
+callback (null,resp);
+}else
+callback (this.response ?JSON.parse(this.response ):{error:"Desconocido" });
+}
+};
+xhttp.open("GET",url,true);
+xhttp.send();
+}
+constaveriguarPais =nombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+getRespuestaHttp (url,(err,res)=>{
+if(err)
+alert(`Error: ${err.error}`);
+else{
+letpaisMasProb =res.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+url=`https://restcountries.com/v3.1/ alpha/${paisMasProb .country_id }`;
+getRespuestaHttp (url,(err,res)=>{
+if(err)
+alert(`Error: ${err.error}`);
+else{
+alert(`Probablemente seasde${res[0].translations.spa.common }`);
+}
+});
+}
+});
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+
+Asincronismo en JavaScript
+“Callback Hell ”
+https://blog.nearsoftjobs.com/the -callback -hell -6cc184ce8704Cuando se anidan llamadas asíncronas, donde cada una depende del resultado de la anterior, se obtiene 
+un código difícil de leer y mantener, conocido como “ Callback Hell ” (Infierno de las devoluciones de 
+llamada) o “ Pyramid ofDoom ” (Pirámide del Doom )
+Esto motivó la creación de las Promesas en ES6
+Muchas librerías aún no han sido actualizadas y funcionan solo con callbacks .
+constaveriguarPais =(nombre)=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+getRespuestaHttp (url,(err,res)=>{
+if(err)
+alert(`Error: ${err.error}`);
+else{
+letpaisMasProb =res.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+url=`https://restcountries.com/v3.1/ alpha/${paisMasProb .country_id }`;
+getRespuestaHttp (url,(err,res)=>{
+if(err)
+alert(`Error: ${err.error}`);
+else{
+alert(`Probablemente seasde${res[0].translations.spa.common }`);
+}
+});
+}
+});
+};
+
+Asincronismo en JavaScript
+Promesas
+https://developer.mozilla.org/es/docs/Web/JavaScript/Reference/Global_Objects/PromiseUna promesa es un objeto, que representa el resultado de una operación 
+asíncrona, la cual puede conocerse al instante, a futuro o nunca.
+newPromise(function (resolveCallback ,rejectCallback ){...});A la hora de crear una promesa, se le envía una función que 
+recibe dos callbacks : uno que se llamará en caso de éxito 
+(resolve ) y otro que se llamará en caso de error ( reject ).
+laPromesa .then(callbackExito ,callbackError );A la hora de consumir una promesa, se invoca al método then enviando un 
+callback para manejar un resultado exitoso y otro para manejar un posible error.
+https://media.vlpt.us/images/edie_ko/
+post/e32022c2 -24fb -49dc -8d93 -
+3e014daeacef/Creating -Promises.png
+https://www.freecodecamp.org/news/content/imag
+es/2020/06/Ekran -Resmi -2020 -06-06-12.21.27.pngComo then devuelve una nueva promesa, se puede obtener el mismo efecto 
+encadenando un llamado al método catch , para hacerlo más legible.
+laPromesa .then(callbackExito ).catch(callbackError );
+
+Asincronismo en JavaScript
+Asincronismo con Promesas
+La función realizarAccionAsync es quien ejecutará la tarea asíncrona, recibiendo parámetros 
+como cualquier otra, pero devolviendo una promesa de que habrá pronto una respuesta.
+https://developer.mozilla.org/es/docs/Web/JavaScript/Guide/Using_promisesconstrealizarAccionAsync =(param1,param2)=>{
+returnnewPromise((resolve,reject)=>{
+/*Serealizan lasacciones asíncronas.
+Sihuboerrores: reject(elError);
+Sihuboéxito: resolve(data);
+*/
+});
+}
+realizarAccionAsync ("arg1","arg2")
+.then(res=>{
+//Haceralgoconelresultado
+})
+.catch(err=>{
+//Haceralgoconelerror
+})Al método then se le envía el callback a 
+invocar en caso éxito ( resolve )La función que recibe ambos 
+callbacks y se envía al 
+constructor de la promesa se 
+denomina ejecutor (executor )
+Al método catch se le envía el callback
+a invocar en caso de error ( reject )
+Usar nombres como resolve o reject son convenciones/costumbres. then y catch deben invocarse así por definición de la clase Promise .
+
+Asincronismo en JavaScript
+Estado de una promesa
+https://javascript.plainenglish.io/exploring -javascript -promises -in-depth -d07541c8ca9fT oda promesa tiene un estado definido, entre otras cosas, por los atributos state y result
+(no accesibles directamente).
+newPromise((resolve,reject)=>{
+/*Serealizan lasacciones asíncronas.
+Sihuboerrores: reject(elError);
+Sihuboéxito: resolve(data);
+*/
+});
+La promesa cambiará de estado según a qué callback invoque (o será pendiente para siempre si no lo hace).
+Una promesa no cambia de estado una vez que haya pasado a ser cumplida ( fulfilled ) o rechazada ( rejected ).
+
+Asincronismo en JavaScript
+Simulacro de asincronismo con Promesa
+La función getPersonaByID simulará una conexión con una BD para buscar un registro por ID y devolverlo. 
+Si no existe, devolverá un objeto que representa un error.Aprendé más en mi canal de Youtube
+constgetPersonaByID =id=>{
+returnnewPromise((resolve,reject)=>{
+console.log(`VamosabuscarID${id}enlaBD.Paciencia...` );
+setTimeout (()=>{
+if(id>0){
+constper={id,nombre: "Pepe"};//ES6
+//constper={id:id,nombre: "Pepe"}; //ES5
+resolve(per);
+}else{
+constunError ={
+error:true,
+msg:`Noseencontró persona conID${id}`
+}
+reject(unError);
+}
+},3000);//Demora3segundos
+});
+}
+getPersonaByID (4).then(res=>{
+console.log("Mostrando resultado en'then'",res);
+}).catch(err=>{
+console.err("Mostrando erroren'catch'" ,err);
+});
+getPersonaByID (-1).then(res=>{
+console.log("Mostrando resultado en'then'",res);
+}).catch(err=>{
+console.error("Mostrando erroren'catch'" ,err);
+});3 segundos luego… 
+🕛🕒🕕
+
+Asincronismo en JavaScript
+Promesas vs. callbacks
+Comparemos el siguiente código usando una u otra metodología
+https://developer.mozilla.org/es/docs/Web/JavaScript/Guide/Using_promisesoperacionAsync1 (res=>{
+operacionAsync2 (res,res2=>{
+operacionAsync3 (res2,resFinal =>{
+console.log(`Obtenido elresfinal:${resFinal }`);
+},errorCallback );
+},errorCallback );
+},errorCallback );operacionAsync1 ()
+  .then(res => {
+    return operacionAsync2 (res);
+  })
+  .then(res2 => {
+    return operacionAsync3 (res2);
+  })
+  .then(resFinal  => {
+    console.log(`Obtenido  el res final: ${resFinal }`);
+  })
+  .catch(errorCallback );
+Usando promesasUsando callbacks
+Nótese que, usando promesas, solo hubo que enviar una sola vez la referencia al callback que maneja el error.
+Si ocurre algún error en la cadena de then , se saltará al catch , como ocurre tradicionalmente con try -catch.
+
+Asincronismo en JavaScript
+Las promesas tienen prioridad
+//Llamada asíncrona concallback .
+setTimeout (()=>console.log("UNO"),0);
+//Llamada asíncrona conpromesa.
+Promise.resolve().then(()=>console.log("DOS"));
+//Llamada síncrona
+console.log("TRES");Es común usar promesas en la comunicación con APIs externas que no queremos retrasar o mezclar 
+con otras funciones asíncronas como eventos del usuario o retardos.
+ES6 establece una “microstask queue ” que gestiona los callbacks de las promesas con mayor prioridad.
+Probar ejecución en JSV9000
+https://javascript.info/microtask -queue
+
+Asincronismo en JavaScript
+Uso de fetch () para peticiones HTTP
+La función fetch es la evolución de XMLHttpRequest de AJAX . 
+Se le envía una URL y retorna una promesa .
+https://developer.mozilla.org/es/docs/Web/API/Fetch_API/Using_Fetchfetch(laURL)
+.then(res=>{
+console.log(res);
+returnres.json();
+})
+.then(resJSON =>{
+console.log(resJSON);
+})
+.catch(err=>{
+console.error(err);
+})Como el anterior then
+retornó una nueva promesa, 
+se encadena otro. .res es un objeto de tipo Response
+json()es un método de Response
+que devuelve una nueva promesa.
+El catch captura cualquier 
+error durante la cadena de 
+promesas. .Para comprobar que la petición fue correcta
+fetch(laURL)
+.then(res=>{
+if(res.ok){
+//Continuar conlasoperaciones
+}else{
+thrownewError(/*Elegir quéenviar*/ );
+}
+})
+.catch((error)=>{
+//Manejar elerror
+});
+
+Asincronismo en JavaScript
+Uso de promesa para app de nombre
+Pedimos el nombre al usuario (se espera sin espacios) y 
+obtenemos un listado de nacionalidades probables, gracias a la 
+API de nationalize.io .
+Mostramos el ID del país que tenga la máxima probabilidad.consthandleFetch =url=>{
+returnfetch(url)
+.then(handleError );
+}
+consthandleError =(res)=>{
+if(!res.ok)thrownew Error(res.statusText );
+returnres;
+}
+constaveriguarPais =nombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+handleFetch (url)
+.then(res=>res.json())
+.then(resJSON =>{
+letpaisMasProb =resJSON.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+alert(`Paísmásprobable: ${paisMasProb .country_id }`);
+})
+.catch(err=>{
+alert(err);
+});
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+Modificá la url para que sea incorrecta y así poder testear 
+cómo se comporta la promesa ante un error, por ejemplo:
+consturl=`https://api.nationalize.io/? nazme=${nombre}`;
+consturl=`https://api.na wtionalize.io/? name=${nombre}`;
+
+Asincronismo en JavaScript
+Encadenamiento de 
+promesas
+Pedimos el nombre al usuario (se espera sin espacios) y 
+obtenemos un listado de nacionalidades probables, 
+gracias a la API de nationalize.io .
+T omamos el ID del país que tenga la máxima probabilidad 
+y obtenemos el nombre del país en español, gracias a la 
+API de REST Countries . consthandleFetch =url=>{
+returnfetch(url)
+.then(handleError );
+}
+consthandleError =(response )=>{
+if(!response .ok)thrownew Error(response .statusText );
+returnresponse ;
+}
+constaveriguarPais =nombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+handleFetch (url)
+.then(res=>res.json())
+.then(resJSON =>{
+letpaisMasProb =resJSON.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+returnpaisMasProb .country_id ;
+})
+.then(codPais =>{
+url=`https://restcountries.com/v3.1/ alpha/${codPais}`;
+handleFetch (url)
+.then(res=>res.json())
+.then(resJSON =>{
+alert(`Probablemente seasde${resJSON[0].translations .spa.common}`);
+})
+})
+.catch(err=>{
+alert(err);
+});
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+Error común : Si fetch falla, no se captura 
+el error y se rompe la cadena. (Ver más)
+Solución en la siguiente diapositiva. .
+
+Asincronismo en JavaScript
+Encadenamiento de promesas
+(Mejorado)
+Pedimos el nombre al usuario (se espera sin espacios) y obtenemos un 
+listado de nacionalidades probables, gracias a la API de nationalize.io .
+T omamos el ID del país que tenga la máxima probabilidad y obtenemos 
+el nombre del país en español, gracias a la API de REST Countries . consthandleFetch =url=>{
+returnfetch(url)
+.then(handleError );
+}
+consthandleError =(response )=>{
+if(!response .ok)thrownewError(response .statusText );
+returnresponse ;
+}
+constaveriguarPais =nombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+handleFetch (url)
+.then(res=>res.json())
+.then(resJSON =>{
+letpaisMasProb =resJSON.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+returnpaisMasProb .country_id ;
+})
+.then(codPais =>{
+url=`https://restcountries.com/v3.1/ alpha/${codPais}`;
+returnhandleFetch (url);
+})
+.then(res=>res.json())
+.then(resJSON =>{
+alert(`Probablemente seasde${resJSON[0].translations .spa.common}`);
+})
+.catch(err=>{
+alert(err);
+});
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+Solución : Retornar la promesa y 
+mantener la cadena plana. (Ver más)
+
+Asincronismo en JavaScript
+async / await
+https://www.w3schools.com/js/js_async.aspasync y await son dos nuevas palabras clave que agregan azúcar sintáctico
+al manejo de asincronismo con promesas.
+asyncfunction funcionAsync (){
+return"Resultado" ;
+}
+console.log( funcionAsync () );
+funcionAsync ()
+.then(res=>console.log(res));
+La palabra async delante de una función 
+hará que esta devuelva una promesa.
+async hace que se 
+retorne una promesa.
+Muestra la promesa 
+por consola.
+Como en cualquier promesa, 
+el resultado se procesa en el 
+callback del then ..asyncfunction funcionAsync (){
+return"Resultado" ;
+}
+asyncfunction mostrarResultado (){
+letres=awaitfuncionAsync ();
+console.log(res);
+}
+mostrarResultado ();Solo puede usarse 
+await dentro de 
+una función async . Esperamos el resultado 
+con await sin usar then ..
+La palabra await aguarda por el 
+resultado de una promesa.
+
+Asincronismo en JavaScript
+Simulacro de asincronismo con async / await
+La función getPersonaByID simulará una conexión con una BD para buscar un registro por ID y devolverlo. 
+Si no existe, devolverá un objeto error.
+constgetPersonaByID =id=>{
+returnnewPromise((resolve,reject)=>{
+console.log(`VamosabuscarID${id}enlaBD.Paciencia...` );
+setTimeout (()=>{
+if(id>0){
+constper={id,nombre: "Pepe"};//ES6
+//constper={id:id,nombre: "Pepe"}; //ES5
+resolve(per);
+}else{
+constunError ={
+error:true,
+msg:`Noseencontró persona conID${id}`
+}
+reject(unError);
+}
+},3000);//Demora3segundos
+});
+}
+asyncfunction testear(id){
+try{
+letres=awaitgetPersonaByID (id);
+console.log("Mostrando resultado enel'try'",res);
+}catch(e){
+console.error("Mostrando errorcapturado en'catch'" ,e);
+}
+}
+testear(10);
+testear(-1);3 segundos luego… 
+🕛🕒🕕
+
+Asincronismo en JavaScript
+Promesas vs. async / await
+Comparemos el siguiente pseudocódigo usando una u otra sintaxis.
+https://developer.mozilla.org/es/docs/Web/JavaScript/Reference/Statements/async_function#reescritura_de_una_cadena_de_promesa s_con_una_funci%C3%B3n_asyncasyncfunction probar(){
+try{
+letres=awaitoperacionAsync1 ();
+letres2=awaitoperacionAsync2 (res);
+letresFinal =awaitoperacionAsync3 (res2);
+console.log(`Obtenido elresultado final:${resultadoFinal }`);
+}catch(error){
+console.error(`Ocurrió unerror:${error}`);
+}
+}operacionAsync1 ().then(res=>{
+returnoperacionAsync2 (res);
+})
+.then(res2=>{
+returnoperacionAsync3 (res2);
+})
+.then(resFinal =>{
+console.log(`Obtenido elresfinal:${resFinal }`);
+})
+.catch(errorCallback );
+Usando promesas Usando async / await
+Con async / await se logra un código más cercano a la forma tradicional síncrona.
+
+Asincronismo en JavaScript
+Uso de async /await para app de nombre
+Pedimos el nombre al usuario (se espera sin espacios) y 
+obtenemos un listado de nacionalidades probables, gracias a la 
+API de nationalize.io .
+Mostramos el ID del país que tenga la máxima probabilidad.consthandleFetch =asyncurl=>{
+constres=awaitfetch(url);
+returnawaithandleError (res);
+}
+consthandleError =(res)=>{
+if(!res.ok)thrownew Error(res.statusText );
+returnres;
+}
+constaveriguarPais =asyncnombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+try{
+constres=awaithandleFetch (url);
+constresJSON =awaitres.json();
+letpaisMasProb =resJSON.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+alert(`Paísmásprobable: ${paisMasProb .country_id }`);
+}catch(err){
+alert(err);
+}
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+Modificá la url para que sea incorrecta y así poder testear 
+cómo se comporta la promesa ante un error, por ejemplo:
+consturl=`https://api.nationalize.io/? nazme=${nombre}`;
+consturl=`https://api.na wtionalize.io/? name=${nombre}`;
+
+Asincronismo en JavaScript
+Encadenamiento de 
+promesas
+con async / await
+Pedimos el nombre al usuario (se espera sin espacios) y 
+obtenemos un listado de nacionalidades probables, gracias a la 
+API de nationalize.io .
+T omamos el ID del país que tenga la máxima probabilidad y 
+obtenemos el nombre del país en español, gracias a la API de 
+REST Countries . consthandleFetch =asyncurl=>{
+constres=awaitfetch(url);
+returnawaithandleError (res);
+}
+consthandleError =(res)=>{
+if(!res.ok)thrownewError(res.statusText );
+returnres;
+}
+constaveriguarPais =asyncnombre=>{
+leturl=`https://api.nationalize.io/? name=${nombre}`;
+try{
+letres=awaithandleFetch (url);
+letresJSON =awaitres.json();
+letpaisMasProb =resJSON.country.reduce((a,b)=>{
+returna.probability >b.probability ?a:b;
+},0);
+constcodPais =paisMasProb .country_id ;
+url=`https://restcountries.com/v3.1/ alpha/${codPais}`;
+res=awaithandleFetch (url);
+resJSON =awaitres.json();
+alert(`Probablemente seasde${resJSON[0].translations .spa.common}`);
+}catch(err){
+alert(err);
+}
+};
+letnombre=prompt("¿Cuálestunombre?" );
+averiguarPais (nombre);🕛🕒🕕
+
+Asincronismo en JavaScript
+FIN DE LA PRESENTACIÓN
+Encontrá más como estas en mi sitio web .

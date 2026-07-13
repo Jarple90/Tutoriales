@@ -1,0 +1,462 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Iniciando
+ 
+en
+ 
+java
+ 
+programación
+ 
+para
+ 
+todos
+ 
+Grado
+ 
+sugerido:
+ 
+Décimo
+ 
+ 
+ 
+ 
+Julián
+ 
+Camilo
+ 
+Tuta
+ 
+Diaz
+ 
+Publicado
+ 
+en
+ 
+el
+ 
+Banco
+ 
+Virtual
+ 
+de
+ 
+Recursos
+ 
+de
+ 
+Colombia
+ 
+Programa
+ 
+en
+ 
+el
+ 
+año
+ 
+2025.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Este
+ 
+material
+ 
+se
+ 
+comparte
+ 
+bajo
+ 
+la
+ 
+licencia
+ 
+Creative
+ 
+Commons
+ 
+Atribución-NoComercial-SinDerivadas
+ 
+4.0
+ 
+Internacional
+ 
+(CC
+ 
+BY-NC-ND
+ 
+4.0).
+ 
+Puede
+ 
+copiar
+ 
+y
+ 
+redistribuir
+ 
+el
+ 
+material
+ 
+en
+ 
+cualquier
+ 
+medio
+ 
+o
+ 
+formato,
+ 
+siempre
+ 
+que
+ 
+dé
+ 
+el
+ 
+crédito
+ 
+adecuado
+ 
+al
+ 
+autor,
+ 
+no
+ 
+lo
+ 
+use
+ 
+con
+ 
+fines
+ 
+comerciales,
+ 
+y
+ 
+no
+ 
+remezcle,
+ 
+transforme
+ 
+o
+ 
+cree
+ 
+a
+ 
+partir
+ 
+del
+ 
+material. 
+ 
+Para
+ 
+más
+ 
+información,
+ 
+consulte
+ 
+la
+ 
+licencia
+ 
+completa
+ 
+en
+ 
+Deed
+ 
+-
+ 
+Attribution-NonCommercial-NoDerivatives
+ 
+4.0
+ 
+International
+ 
+-
+ 
+Creative
+ 
+Commons
+ 
+ 
+ 
+Para
+ 
+contactar
+ 
+al
+ 
+autor/a
+ 
+de
+ 
+este
+ 
+recurso,
+ 
+escriba
+ 
+a:
+ 
+profe.juliancamilo@gmail.com
+ 
+                                        
+                
+ 
+Plantilla de Secuencia Didáctica para el Banco de Recursos ………………………………………….. Pág. 1 de 5 
+ SECUENCIA DIDÁCTICA: INICIANDO EN JAVA PROGRAMACIÓN PARA 
+TODOS  
+ 
+En el presente documento se muestra una secuencia didáctica que tiene como 
+objetivo d esarrollar  habilidades avanzadas en Java mediante el uso de funciones y 
+estructuras de datos  esto mediante el uso de un Objeto Virtual de Aprendizaje 
+OVA llamado Iniciando en Java: Programación para Todos, e l OVA se divide en 
+varias sesiones, cada una enfocada en un tema específico, mezclando la teoría y 
+práctica, con ejercicios y actividades para reforzar lo aprendido , el desarrollo de 
+esta secuencia requiere de 3 sesiones de 90 minutos cada una y 1 ultima sesión 
+de 120 minutos.  
+ 
+Aprendizaje(s) 
+esperado(s)  • Comprender los conceptos básicos de la programación en 
+Java, su sintaxis y estructura, para escribir programas simples.  
+• Aplicar estructuras de control en la programación en Java para 
+la toma de decisiones y la repetición de bloques de código.  
+• Desarrollar programas modulares en Java utilizando funciones 
+para mejorar la organización y reutilización del código.  
+• Manejar estructuras de datos en Java y aplicar técnicas de 
+depuración y manejo de excepciones para desarrollar 
+aplicaciones simples y efectivas.  
+ 
+Materiales requeridos  • Computadoras  o tabletas o dispositivos móviles con acceso a 
+internet  
+• Papel, lápiz y borrador  
+Conocimientos 
+previos requeridos  
+ Saberes previos recomendados:  
+1. Lógica de programación básica  
+• Comprensión de algoritmos sencillos.  
+• Uso de estructuras secuenciales, condicionales y 
+repetitivas.  
+• Ejercicios previos en pseudocódigo o lenguajes 
+visuales (como Scratch o PSeInt).  
+2. Manejo básico de computadores  
+• Navegación en carpetas, edición y guardado de 
+archivos.  
+• Instalación y apertura de software (como Visual Studio 
+Code o algún IDE de Java).  
+3. Pensamiento estructurado  
+• Capacidad para descomponer problemas en pasos 
+lógicos.  
+• Reconocimiento de patrones y estructuras repetitivas.  
+4. Familiaridad con conceptos básicos de matemáticas  
+• Uso de operadores matemáticos (+, –, *, /, %).  
+• Comprensión de variables y operaciones simples.  
+5. Conocimientos básicos de inglés técnico (deseable)  
+• Reconocimiento de palabras clave como if, else, for, 
+while, return, etc.  
+ 
+ 
+                                      
+Pág. 2 de 5 
+ Actividad(es) a desarrollar  Tiempo 
+estimado  
+Sesión 1:  (trabajo grupal)  
+1. Activación del Conocimiento Previo: Iniciar la sesión con una breve 
+discusión sobre la importancia de la programación y cómo Java se utiliza en 
+diferentes aplicaciones. Preguntar a los estudiantes si tienen experiencia 
+previa con algún lenguaje de programación.  10 minutos  
+2. Presentación del Contenido: Abordar el OVA en la Sección 1: Introducción 
+a la Programación en Java: que contiene conceptos básicos de Java, sintaxis 
+y estructura general de un programa en Java, se expone historia y evolución, 
+y ejemplos simples para ilu strar cada concepto.  30 minutos  
+3. Actividad Práctica: Los estudiantes realizarán un ejercicio guiado donde 
+escribirán su primer código en Java. Durante esta actividad, se prestará 
+atención a la correcta aplicación de la sintaxis, este ejercicio será revisado 
+por el docente.  40 minutos  
+4. Cierre: Revisión colectiva del ejercicio realizado, destacando los puntos 
+clave aprendidos sobre la sintaxis y estructura de Java.  10 minutos  
+Sesión 2:  (trabajo grupal)  
+1.Repaso Rápido: Breve recapitulación de la sesión anterior y cómo los 
+conceptos básicos se aplican en las estructuras de control.  10 minutos  
+2. Explicación Teórica: Introducción y explicación de las estructuras 
+condicionales (if, else, elif) y bucles (for, while) en Java por medio del acceso 
+a la Sección 2: Estructuras de Control del OVA, se presentan conceptos, un 
+juego previo, estructuras y ejemplos, se presentan vi deos que permiten 
+ampliar los conceptos de forma didáctica.  20 minutos  
+3. Actividad Práctica: Los estudiantes desarrollan actividades practicas dando 
+respuesta a una actividad que emplea Aprendizaje Basado en Problemas 
+ABP que cuenta con retroalimentación inmediata  50 minutos  
+4. Cierre: Reflexión grupal sobre los desafíos enfrentados durante la práctica 
+y cómo se resolvieron  10 minutos  
+Sesión 3:  (trabajo grupal)  
+1.Introducción: Discutir brevemente la importancia de la modularidad en la 
+programación y cómo las funciones facilitan la escritura y mantenimiento del 
+código.  10 minutos  
+2. Explicación Detallada: Mediante la Sección 3: Funciones y Modularidad del 
+OVA se presenta la definición mediante un video, se ejemplifican funciones 
+en Java, explicando conceptos como parámetros y valores de retorno, con 
+ejemplos claros.  30 minutos  
+3. Actividad Práctica (40 min): Los estudiantes deberán tomar un problema 
+cotidiano que se resuelve completando un código que permita desarrollar un 
+sistema.  40 minutos  
+4. Cierre: Compartir soluciones entre los estudiantes y discutir diferentes 
+enfoques para resolver los problemas planteados en la práctica.  10 minutos  
+Sesión 4:  (trabajo grupal)  
+1. Explicación de Estructuras de Datos: Introducción a las listas, tuplas, y 
+diccionarios en Java, por medio de la Sección 4: Estructuras de datos dentro 
+del OVA, que explica operaciones básicas y su uso en programas, por medio 
+de ejemplos y una actividad final que tiene retroalimentación inmediata.  30 minutos  
+2.Técnicas de Depuración: Se presenta mediante al Sección 5: Depuración y 
+Manejo de Errores del OVA, en la cual se presentan definiciones, un video 
+explicativo y una actividad con la que se espera que se encuentren errores 
+dentro de los códigos, estos debe n ser compartidos con los compañeros y 
+docente.  20 minutos  
+                                      
+Pág. 3 de 5 
+ 3.Desarrollo de Proyecto: Mediante la Sección 6: Proyectos y Aplicaciones 
+Prácticas del OVA los estudiantes verán un video explicativo, y 
+posteriormente desarrollarán diferentes pequeños proyectos utilizando lo 
+aprendido en las sesiones anteriores. Se enfo carán en la aplicación práctica 
+de estructuras de datos, depuración, y manejo de excepciones, para el 
+desarrollo de los proyectos se da un contexto y una pequeña recomendación.  60 minutos  
+4. Cierre: Se presenta a los estudiantes una plataforma que permite a los 
+estudiantes practicar de forma gratuita en línea todo lo aprendido, esto con el 
+fin de que practiquen fuera del aula de clases.  10 minutos  
+Adaptaciones  
+Población con discapacidad visual:  utiliza r instrucciones narradas.  
+Actividades evaluativas  
+Sesión 1:  
+Observación directa durante la actividad práctica.  
+Revisión del código desarrollado por los estudiantes.  
+Sesión 2:  
+Análisis del código generado por los estudiantes en los ejercicios prácticos.  
+Sesión 3:  
+Revisión del código funcional y modular desarrollado durante la práctica  
+Sesión 4:  
+Evaluación de uno de los proyectos desarrollado por cada estudiante.  
+Retroalimentación grupal sobre las soluciones presentadas.  
+Referencias  Absolute. (2021). JAVA en 5 minutos  [Video]. YouTube. 
+https://www.youtube.com/watch?v=q_ -mO8qJ4Ic&t=51s   
+Ávila, C. (2019). Estructuras de control condicional Java . 
+https://repositorio.konradlorenz.edu.co/handle/001/986   
+BitechStudio. (2021). ¿Qué es Java? En 3 minutos  [Video]. YouTube. 
+https://www.youtube.com/watch?v=crBLYdQRUsk   
+Cegamer. (2023a). Bucles FOR ¿Qué son y cómo funcionan? ¿Cómo 
+funciona un bucle FOR en programación?  [Video]. YouTube. 
+https://www.youtube.com/watch?v=7b05wlqeeEI   
+Cegamer. (2023b). Bucles WHILE ¿Qué son y cómo funcionan? 
+¿Cómo funciona un bucle while en programación?  [Video]. YouTube. 
+https://www.youtube.com/watch?v=0h_srypSheg   
+Courses, U. -P. (2016). Diccionarios (HashMap) en Java | Estructuras 
+de Datos | Curso Java #37  [Video]. YouTube. 
+https://www.youtube.com/watch?v=I6Iq8tcpHbM   
+Edutronicca. (2023). Funciones con return | ¿Qué hace return? | 
+Ejemplo de return en Java  [Video]. YouTube. 
+https://www.youtube.com/watch?v=wMcx0cLhR0E   
+EggLive. (2021). Errores en Java | Programación | Java | V6 | Egg 
+Educación  [Video]. YouTube. 
+https://www.youtube.com/watch?v=QwIbmTag3g0   
+Galarza, J., & Carriel, R. (2022). Evolución de los sistemas de 
+lenguaje de programación a lo largo de la historia. E-IDEA Journal of 
+Engineering Science , 4(10), 14 –26. 
+https://doi.org/10.53734/ESCI.V04.I4.D237   
+Krohn, H. (2019). Programación de buscadores en JavaScript para 
+diccionarios digitales. Cuadernos de Lingüística Hispánica , 2019(34), 
+109–130. https://doi.org/10.19053/0121053X.N34.2019.9410   
+                                      
+Pág. 4 de 5 
+ Luna, F. (2019). JavaScript: Aprende a programar en el lenguaje de la 
+web (Peña, Clau). Redusers. https://bit.ly/4mYcGGz   
+Malaver, A., & Niño, E. (2020). Datos, lógica y algoritmos: Guía 
+práctica con Java como herramienta: Área: Programación de 
+Computadores. Libros Interactivos Multimedia  (MI-Books). 
+https://doi.org/10.15765/LIMLV.3806   
+Pérez, J. (2019). Introducción a JavaScript . https://bit.ly/3ZD5GVi   
+Pinto, L. (2019). Lenguajes de programación. Algoritmos, 
+herramientas, programación estructurada. Aplicación a los lenguajes 
+de programación Pascal y otros lenguajes . 
+Pinto, L. (2021). Lenguajes de programación orientada a objetos: 
+Características principales, objetos, clases . https://bit.ly/4kNmJfC    
+Reyes, C. (2020). Desarrollo de un algoritmo en lenguaje de 
+programación Java para el diseño de bombeo electro sumergible y su 
+aplicación en un pozo del oriente ecuatoriano . https://bit.ly/3Z8qzYh    
+Roque, R. (2019). Lenguaje de programación Java y JavaScript. 
+Características. Norma de escritura. Variables y operadores lógicos. 
+Mensajes. Ejercicios. Estructuras condicionales. Entrada y salida de 
+datos. Aplicaciones. Rama . https://bit.ly/3ZFQI0K   
+Xu, Y., & Zhou, Y. (2023). Procesado paramétrico de lenguajes en 
+Java . https://hdl.handle.net/20.500.14352/88198   
+ 
+ 
+ANEXO  
+ 
+Anexo 1.  
+Secuencia Didáctica diseñada: Secuencia Didáctica Iniciando en Java  
+https://drive.google.com/file/d/1M78Wh474r2386wnZJjLGbwnEF8fiYbpP/view?usp=drive_link   
+ 
+ 
+ 
+Anexo 2.  
+Acceso al OVA creado: “Iniciando en Java: Programación para Todos”  
+https://view.genially.com/6697d4b905c3198f985ad11a/presentation -proyecto -final-ova 
+
+                                      
+Pág. 5 de 5 
+  
+ 
+

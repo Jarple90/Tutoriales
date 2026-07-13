@@ -1,0 +1,582 @@
+Introducción a docker 
+Benito Cuesta & Salvador González 
+01/03/2016 
+
+Copyright © Open Canarias 2016 Índice 
+●Presentación 
+●Dockers. Definición y características. 
+●Getting Started 
+●Delivery con Kubernetes 
+●Microservicios. Estilo arquitectónico. Ventajas de 
+dockers para una arquitectura de microservicios. 
+●Ciclo de vida con Devops / Integración Contínua 
+●Caso práctico: INTA. Cluster de Libreoffice con 
+Docker 
+2
+Copyright © Open Canarias 2016 Open Canarias 
+Empresa de servicios y 
+suministros TIC fundada en 1996 
+Actualmente tiene implantación 
+nacional y con presencia 
+internacional en México 
+Está especializada en productos y 
+servicios IT, además de proyectos 
+de alto riesgo tecnológico 
+Business partner de IBM Áreas de 
+servicio 
+Servicios de 
+Ingeniería del 
+Software 
+Servicios de 
+Infraestructura 
+TIC
+Servicios 
+externos 
+3
+Copyright © Open Canarias 2016 Servicios de Ingeniería del 
+Software 
+Proporcionan soluciones a diferentes aspectos 
+del ciclo de vida de aplicaciones, con especial 
+énfasis en el incremento de la productividad y 
+la calidad en los procesos y productos de 
+trabajo vinculados a dicho ciclo de vida 
+Fundamentan estas soluciones en las 
+capacidades en MDE (Model Driven 
+Engineering), un nuevo paradigma de la 
+Ingeniería del Software en el que Open 
+Canarias ha sido pionero y contribuidor a 
+varios estándares 
+Con MDE se construyen herramientas que 
+automatizan procesos y tareas del ciclo de vida 
+del software, reduciendo los tiempos de 
+entrega, al mismo tiempo que se mejora la 
+calidad al reducir las tareas manuales 
+propensas a errores 
+Estructura de los Servicios 
+Desarrollo de 
+Herramientas 
+Modernización del 
+Software 
+QA (Aseguramiento de la 
+calidad) 
+4
+Copyright © Open Canarias 2016 Antes de empezar... 
+“La complejidad  cada vez mayor de las 
+aplicaciones y la necesidad de acelerar el 
+desarrollo  están ejerciendo aún más presión 
+sobre la infraestructura, procesos y equipos de 
+TI.”
+Fuente: https://www.redhat.com/es/insights/containers 
+5
+Copyright © Open Canarias 2016 Otra cita... 
+“Los líderes en I&O deben mejorar las 
+estrategias de implementación de servidores o 
+crearán infraestructuras incapaces  de dar 
+soporte a la siguiente generación de 
+aplicaciones.” 
+Fuente: IT MARKET CLOCK FOR SERVER VIRTUALIZATION 
+AND OPERATING ENVIRONMENTS, 16/09/2014. 
+GARTNER N.º: G00262842 
+6
+Copyright © Open Canarias 2016 Un buen libro para empezar 
+The Docker Book 
+James Turnbull 
+August 4, 2014 
+Website: http://www.
+dockerbook.com 
+7
+Copyright © Open Canarias 2016 Dockers 
+Definición y características 
+8
+Copyright © Open Canarias 2016 ¿Qué es Docker? 
+●“Es un proyecto open source para empaquetar, 
+transportar y ejecutar cualquier aplicación como un 
+contenedor ligero”. 
+●Su versión inicial se publica el 13 de Marzo de 2013 y 
+está escrito en el lenguaje GO.
+●Se trata de un nuevo modelo de virtualización que crea 
+una capa de abstracción con el S.O. 
+●Un contenedor conforma el contexto de ejecución de una 
+aplicación. Está compuesto de: 
+−Sistema de ficheros 
+−Procesos 
+−Memoria 
+−… y todo aislado del S.O huesped 9
+Copyright © Open Canarias 2016 Componentes 
+●Libcontainer (Derivado de LXC). 
+●Linux kernel namespaces (aislamiento de l sistema de 
+ficheros, red y procesos). 
+●Aislamiento de los recursos (Cpu, Memoria, etc) por 
+medio de los cgroups. 
+●Copy-on-write 
+●Logging. Salidas de la línea de comando accesibles con 
+el cliente docker. 
+●Consola interactiva. 
+10
+Copyright © Open Canarias 2016 La comunidad de Docker 
+●1200 contribuidores al proyecto Docker 
+●100,000 aplicaciones dockerizadas 
+●Entre 3 y 4 millones de desarrolladores usando 
+Docker 
+●300 millones de descargas 
+●32,000 proyectos relacionados con Docker 
+●El 70% de las empresas TI están adoptando 
+Docker (fuente: SD Times) 
+11
+Copyright © Open Canarias 2016 Nuevo modelo 
+Partes comunes 
+12
+Copyright © Open Canarias 2016 Nueva visión del S.O. 
+●Con el nuevo modelo de contenedores 
+podemos abstraernos del S.O. donde corre el 
+motor Docker. 
+●Diseñados para un mundo Cloud, distribuido. 
+●Los nuevos Sistemas Operativos 
+(BareMetal/Virtual) 
+13
+Copyright © Open Canarias 2016 Registro 
+●Registro 
+−Registro público (Docker Hub) 
+●> 10.000 imágenes disponibles 
+−Registro privado 
+●Sólo accesible bajo autorización. Es de pago. 
+●Registro local 
+−Este registro se instala por medio de un contenedor 
+Docker para centralizar las imágenes de los 
+contenedores 
+14
+Copyright © Open Canarias 2016 Ventajas de Dockers 
+Fuente: https://www.redhat.com/es/insights/containers 
+15
+Copyright © Open Canarias 2016 Getting Started 
+16
+Copyright © Open Canarias 2016 Instalación 
+●En linux se hace uso de los comandos de 
+gestión de paquetes habituales 
+●Para Windows y Mac se hace uso  de un 
+programa llamado “docker-machine” 
+●Docker es un demonio que expone una interfaz 
+REST 
+17
+Copyright © Open Canarias 2016 Linux / Mac / Windows 
+18
+Copyright © Open Canarias 2016 Comandos iniciales 
+●docker (lista los posibles comandos) 
+●docker version (versión del demonio y del 
+cliente) 
+●docker info (información del sistema) 
+19
+Copyright © Open Canarias 2016 Nuestro primer contenedor 
+●docker run -i ubuntu echo Hello World 
+−run → Ejecutar un contenedor 
+−-i → Modo interactivo 
+−ubuntu → Imagen a usar en el contenedor 
+−echo Hello World→ Comando a ejecutar 
+●Flujo: 
+−Busca la imagen localmente, luego en repositorios 
+centrales. 
+20
+Copyright © Open Canarias 2016 Imágenes 
+●Una imagen está 
+formada por capas 
+(layers ) que se montan 
+unas encima de otras. 
+Todas en modo sólo 
+lectura. 
+●La última capa se monta 
+como lectura/escritura y 
+da lugar al contenedor. 
+●Las capas usan el patrón 
+“copy on write” 
+21
+Copyright © Open Canarias 2016 Comandos imágenes 
+●docker images 
+●docker run -t -i --name test01 ubuntu /bin/bash  
+(ubuntu:latest) 
+●docker run -t -i --name test02 centos:centos6 
+/bin/bash 
+●docker pull ubuntu:14.04 
+●docker pull sgonzalez/centosopen:centos5 
+●docker search  centos 
+22
+Copyright © Open Canarias 2016 Crear imágenes 
+●docker commit  (no recomendado) 
+−docker run -it centos /bin/bash 
+−yum upgrade && yum install httpd 
+−vi /var/www/html/index.html 
+−exit
+−docker commit <containerID> sgonzalez/apache:
+webopen 
+●docker build 
+−Consiste en un fichero (Dockerfile) de instrucciones 
+para construir las imágenes 
+23
+Copyright © Open Canarias 2016 Dockerfile 
+●Comandos más habituales 
+−FROM  → De que imagen partimos para crear la nueva 
+−MAINTEINER  → Quien mantiene el contenedor 
+−RUN  → Ejecuta una instrucción en el contenedor 
+−ADD  → Añade un fichero o carpeta al contenedor 
+−ENV → Establece una variable de entorno en el 
+contenedor 
+−EXPOSE  → Indica que se va a exponer un puerto del 
+contenedor 
+−ENTRYPOINT  / CMD→  Qué se ejecuta 
+ 24
+Copyright © Open Canarias 2016 ENTRYPOINT / CMD 
+●ENTRYPOINT define el proceso a ejecutar 
+○Por defecto es “/bin/sh -c” 
+●CMD son los parámetros del proceso 
+●Por ejemplo: 
+○CMD [“/usr/bin/top”] 
+○docker run -i -t myubuntu  (/bin/sh -c /usr/bin/top) 
+○docker run -i -t myubuntu bash  (/bin/sh -c  bash) 
+○ENTRYPOINT ["/bin/cat"] 
+○docker run -it catimg /etc/passwd  (/bin/cat 
+/etc/passwd)  
+ 25
+Copyright © Open Canarias 2016 Contenedores 
+●Hacen uso de una imagen como base y pueden 
+contener uno o más procesos. 
+●Un contenedor Docker es: 
+−Una instancia de una imagen Docker 
+−Un conjunto de operaciones asociadas a su ciclo de 
+vida: 
+●Crear, Destruir, Arrancar, Reiniciar o Parar 
+−Un entorno de ejecución 
+26
+Copyright © Open Canarias 2016 Comandos contenedores 
+●docker run -d ubuntu /bin/sh -c "while true; do 
+echo Hello World; sleep 1; done" 
+docker ps [-a] docker inspect  <ID> 
+docker attach  <ID> docker stop  <ID> 
+docker start  <ID> docker rm [-f] <ID> 
+docker logs [-f] <ID> docker create  <image> 
+docker top <ID> docker build  [-f dockerfile] <dir> 
+docker exec  <ID> <cmd> docker load / save 
+27
+Copyright © Open Canarias 2016 Uso de contenedores 
+●Data Volumes 
+−Dockerfile 
+●VOLUME [ “/var/log/http” ] 
+−Docker run 
+●docker run -v [rutahost:]rutacontenedor[:rw,:ro] 
+●Data Volume Containers 
+−docker run --volumes-from  datacontainer …
+●Links 
+−(1) docker run -d --name database01 … 
+−(2) docker run -d --name web --link database01:db ... 
+28
+Copyright © Open Canarias 2016 Data Volume Containers 
+db1dbstore
+db2--volumes- from 
+dbstore --volumes- from 
+dbstore 
+docker create -v /dbdata --name dbstore ubuntu /bin/true 
+docker run -d --volumes- from dbstore --name db1 training/postgres 
+docker run -d --volumes- from dbstore --name db2 training/postgres /var/lib/docker/volumes/f30d….959c7d/_data 
+29
+Copyright © Open Canarias 2016 HOST Ports & Link Containers 
+Con EXPOSE: 
+●Se expone un puerto del 
+contenedor al host. 
+-p [<host_port>:]<cont_port> 
+Cuando se “linkan” dos 
+contenedores pasan dos 
+cosas: 
+●Se crean variables de 
+entorno 
+<name>_PORT_<port>_<protocol> 
+●Se modifica el /etc/hosts docker run -d --name db -p 5432 training/postgres 
+docker run -it --link db:db  -p 80:80  --name myapp ubuntu bash 
+/etc/hosts 
+172.17.0.2  db myapp
+db
+eth0
+192.168.1.100 eth0
+172.17.0.3 eth0
+172.17.0.2 
+docker0 
+172.17.0.1 80 5432 
+80 6789 
+30
+Copyright © Open Canarias 2016 Delivery con Kubernetes 
+31
+Copyright © Open Canarias 2016 Orquestación 
+●Diferentes plataformas de orquestación 
+ Kubernetes (Proyecto de Google, 2014) 
+ Mesos (Proyecto apache, 2015) 
+ Docker Swarm (Proyecto de Docker, 2015) 
+●Kubernetes (2014) 
+ Plataforma para automatizar el despliegue, escalado 
+y uso de contenedores sobre un cluster de 
+servidores. 
+ El sistema es altamente portable ( public, private, 
+hybrid, multi-cloud )
+32
+Copyright © Open Canarias 2016 
+Cluster Kubernetes 
+●El Cluster está compuesto por... 
+○Número impar de servidores de gestión (>=3) 
+○Ilimitado número de nodos de trabajo (minions) 
+●Cita
+○“Hay que tratar los servidores como ganado y no 
+como mascotas” 
+33
+Copyright © Open Canarias 2016 Arquitectura 
+34
+Copyright © Open Canarias 2016 Microservicios 
+Estilo Arquitectónico 
+35
+Copyright © Open Canarias 2016 Microservices Architecture 
+(MSA) 
+Fuente: http://martinfowler.com/articles/microservices.html 
+36
+Copyright © Open Canarias 2016 Estructura Organizativa (I) 
+37
+Copyright © Open Canarias 2016 Estructura Organizativa (II) 
+38
+Copyright © Open Canarias 2016 Dockers & MSA 
+●Cloud Ready 
+●Simplificación de los 
+despliegues 
+●Capacidad de escalado 
+dinámico y automático 
+●Portabilidad de las 
+soluciones 
+●Reutilización 
+●Facilita la Integración 
+Contínua 
+39
+Copyright © Open Canarias 2016 Ciclo de vida con Devops 
+Integración Contínua con Dockers 
+40
+Copyright © Open Canarias 2016 DevOps 
+41
+Copyright © Open Canarias 2016 Integración Contínua 
+42
+Copyright © Open Canarias 2016 Integración Contínua 
+43
+
+Copyright © Open Canarias 2016 Dockers for CI (I) 
+FROM ubuntu:14.04 
+MAINTAINER  bcuesta@opencanarias.es 
+ENV REFRESHED_AT 2016-03-01 
+RUN apt-get update -qq && apt-get install -qqy curl ↩
+apt-transport-https 
+RUN curl https://get.docker.io/gpg | apt-key add - 
+RUN echo deb http://get.docker.io/ubuntu docker main > /etc/apt/ ↩
+sources.list.d/docker.list 
+RUN apt-get update -qq && apt-get install -qqy iptables ca- ↩
+certificates lxc openjdk-7-jdk git-core lxc-docker 
+ENV JENKINS_HOME /opt/jenkins/data 
+ENV JENKINS_MIRROR http://mirrors.jenkins-ci.org 
+RUN mkdir -p $JENKINS_HOME/plugins 
+RUN curl -sf -o /opt/jenkins/jenkins.war -L $JENKINS_MIRROR/war- ↩
+stable/latest/jenkins.war 
+RUN for plugin in chucknorris greenballs scm-api git-client git ↩
+ws-cleanup ;\ 
+do curl -sf -o $JENKINS_HOME/plugins/${plugin}.hpi \ 
+-L $JENKINS_MIRROR/plugins/${plugin}/latest/${plugin}.hpi ↩
+; done
+ADD ./dockerjenkins.sh /usr/local/bin/dockerjenkins.sh 
+RUN chmod +x /usr/local/bin/dockerjenkins.sh 
+VOLUME /var/lib/docker 
+EXPOSE 8080
+ENTRYPOINT  [ "/usr/local/bin/dockerjenkins.sh" ] 
+Fuente: The.Docker.Book. James Turnbull ●$ docker build -t ↩
+opencanarias/jenkins . 
+●$ docker run -p 8080:8080 ↩ 
+--name jenkins ↩ --
+privileged ↩
+-d opencanarias/jenkins 
+44
+Copyright © Open Canarias 2016 Dockers for CI (II) 
+45
+Copyright © Open Canarias 2016 Dockers for CI (II) 
+46
+Copyright © Open Canarias 2016 Ejemplos Prácticos 
+47
+Copyright © Open Canarias 2016 DOCMANAGER (INTA) 
+Servidor Linux 1 
+OpenOffice 
+2.1
+Tomcat 5.5 ULISES Servidor Linux 2 
+OpenOffice 
+2.1
+Tomcat 5.5 VULCANO 
+DocManager 
+48
+Copyright © Open Canarias 2016 DOCMANAGER (INTA) 
+Servidor Linux 1 
+Tomcat 5.5 ULISES Servidor Linux 2 
+Tomcat 5.5 VULCANO 
+DocManager 
+Client 
+LOTIDES LibreOffice 
+4.4 LibreOffice 
+4.4 LibreOffice 
+4.4 LibreOffice 
+4.4 LibreOffice 
+4.4HAProxy 
+Load 
+Balancer DocManager 
+Server DocManager 
+Client 
+49
+Copyright © Open Canarias 2016 DOCMANAGER (INTA) 
+LOTIDES 
+RMIRegistry
+DocManager 
+Server 1234 1099 
+HAProxy8997 
+Data 
+Libre
+Offic 
+9990 
+9999 
+--volumes-from --volumes-from link 
+haproxy 
+LIBS 
+--volumes 
+CFG 
+--volumes 1936 
+link 
+libreoffice Plantilla 
+Imágenes 
+Ficheros 
+Datos Web 
+control 
+TMP 
+--volumes 8997 8997 
+Libre
+Offic 
+50
+Copyright © Open Canarias 2016 Compose 
+DocManagerData :
+   image: ubuntu 
+   volumes: 
+     - "/tmp/DOCManager" 
+     - "/tmp/DOCManager/temp" 
+DocManagerServer :
+   image: inta/docmanagerserver 
+   links: 
+     - "haproxy:haproxy" 
+   volumes: 
+     - "/usr/local/src/DockerImages/libs:/opt/DOCManagerServer/lib" 
+   volumes_from: 
+     - DocManagerData 
+   ports: 
+     - "1099:1099" 
+     - "1234:1234" ↵
+haproxy :
+   image: inta/haproxy 
+   links: 
+     - "libreoffice:libreoffice" 
+   volumes: 
+     - /etc/haproxy/haproxy.cfg:/etc/haproxy/haproxy.cfg 
+   ports: 
+     - "8997:8997" 
+     - "1936:1936" 
+libreoffice :
+   image: inta/libreoffice 
+   environment: 
+     - TCP_PORTS=8997 
+   expose: 
+     - "8997" 
+   volumes_from: 
+     - DocManagerData 
+51
+Copyright © Open Canarias 2016 Compose 
+DocManagerData :
+   image: ubuntu 
+   volumes: 
+     - "/tmp/DOCManager" 
+     - "/tmp/DOCManager/temp" 
+DocManagerServer :
+   image: inta/docmanagerserver 
+   links: 
+     - "haproxy:haproxy" 
+   volumes: 
+     - "/usr/local/src/DockerImages/libs:/opt/DOCManagerServer/lib" 
+   volumes_from: 
+     - DocManagerData 
+   ports: 
+     - "1099:1099" 
+     - "1234:1234" ↵
+haproxy :
+   image: inta/haproxy 
+   links: 
+     - "libreoffice:libreoffice" 
+   volumes: 
+     - /etc/haproxy/haproxy.cfg:/etc/haproxy/haproxy.cfg 
+   ports: 
+     - "8997:8997" 
+     - "1936:1936" 
+libreoffice :
+   image: inta/libreoffice 
+   environment: 
+     - TCP_PORTS=8997 
+   expose: 
+     - "8997" 
+   volumes_from: 
+     - DocManagerData 
+ docker-compose up -d 
+52
+Copyright © Open Canarias 2016 Compose 
+DocManagerData :
+   image: ubuntu 
+   volumes: 
+     - "/tmp/DOCManager" 
+     - "/tmp/DOCManager/temp" 
+DocManagerServer :
+   image: inta/docmanagerserver 
+   links: 
+     - "haproxy:haproxy" 
+   volumes: 
+     - "/usr/local/src/DockerImages/libs:/opt/DOCManagerServer/lib" 
+   volumes_from: 
+     - DocManagerData 
+   ports: 
+     - "1099:1099" 
+     - "1234:1234" ↵
+haproxy :
+   image: inta/haproxy 
+   links: 
+     - "libreoffice:libreoffice" 
+   volumes: 
+     - /etc/haproxy/haproxy.cfg:/etc/haproxy/haproxy.cfg 
+   ports: 
+     - "8997:8997" 
+     - "1936:1936" 
+libreoffice :
+   image: inta/libreoffice 
+   environment: 
+     - TCP_PORTS=8997 
+   expose: 
+     - "8997" 
+   volumes_from: 
+     - DocManagerData 
+ docker-compose scale libreoffice=5 
+53
+Copyright © Open Canarias 2016 Usos de Docker 
+●Ayudar a que nuestro entorno de desarrollo sea más rápido, 
+eficiente y más ligero. Los desarrolladores pueden compartir 
+los contenedores entre ellos. 
+●Ejecución de micro-servicios y aplicaciones consistentemente 
+entre diferentes entornos. (AWS, GCE, etc). 
+●Creación de entornos de test para la integración continua 
+como Jenkins por ejemplo. 
+●Creación y prueba de entornos complejos en máquinas 
+locales, antes de pasarlos a producción. 
+●Construcción de “sandboxes” ligeras para desarrollo, test, etc. 
+●SaaS y PaaS 
+54
+Copyright © Open Canarias 2016 Gracias 
+●info@opencanarias.com 
+●www.opencanarias.com 
+●www.linkedin.com/company/open-canarias-sl 
+●www.facebook.com/opencanarias 
+●www.google.com/+opencanarias 
+●@OpenCanarias 
+55
