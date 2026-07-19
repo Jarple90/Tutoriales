@@ -1,0 +1,104 @@
+{
+    "entries": [
+        {
+            "english": "apple",
+            "spanish": "manzana",
+            "category": "noun"
+        },
+        {
+            "english": "house",
+            "spanish": "casa",
+            "category": "noun"
+        },
+        {
+            "english": "car",
+            "spanish": "coche",
+            "category": "noun"
+        },
+        {
+            "english": "dog",
+            "spanish": "perro",
+            "category": "noun"
+        },
+        {
+            "english": "cat",
+            "spanish": "gato",
+            "category": "noun"
+        },
+        {
+            "english": "computer",
+            "spanish": "ordenador",
+            "category": "noun"
+        },
+        {
+            "english": "run",
+            "spanish": "correr",
+            "category": "verb"
+        },
+        {
+            "english": "eat",
+            "spanish": "comer",
+            "category": "verb"
+        },
+        {
+            "english": "drink",
+            "spanish": "beber",
+            "category": "verb"
+        },
+        {
+            "english": "sleep",
+            "spanish": "dormir",
+            "category": "verb"
+        },
+        {
+            "english": "beautiful",
+            "spanish": "bonito",
+            "category": "adjective"
+        },
+        {
+            "english": "big",
+            "spanish": "grande",
+            "category": "adjective"
+        },
+        {
+            "english": "small",
+            "spanish": "pequeño",
+            "category": "adjective"
+        },
+        {
+            "english": "fast",
+            "spanish": "rápido",
+            "category": "adjective"
+        },
+        {
+            "english": "slow",
+            "spanish": "lento",
+            "category": "adjective"
+        },
+        {
+            "english": "thank you",
+            "spanish": "gracias",
+            "category": "phrase"
+        },
+        {
+            "english": "good morning",
+            "spanish": "buenos días",
+            "category": "phrase"
+        },
+        {
+            "english": "good night",
+            "spanish": "buenas noches",
+            "category": "phrase"
+        },
+        {
+            "english": "see you later",
+            "spanish": "hasta luego",
+            "category": "phrase"
+        },
+        {
+            "english": "excuse me",
+            "spanish": "perdón",
+            "category": "phrase"
+        }
+    ]
+}
